@@ -1,66 +1,59 @@
 # LocalForge
 
-LocalForge is a VS Code extension that provides an AI-powered chat interface and a local server API, leveraging the GitHub Copilot Chat models to refine prompts and generate technical specifications.
+**LocalForge** is your local AI companion for VS Code, leveraging GitHub Copilot Chat models to refine prompts and generate technical specifications directly within your editor. It also bridges the gap between your local environment and Copilot by providing a local server API.
+
+![LocalForge Icon](icon.png)
 
 ## Features
 
-- **AI Chat Interface**: Interact with GitHub Copilot models directly from the sidebar.
-- **Prompt Refinement**: Enhance your prompts for better results.
-- **Local Server API**: Expose Copilot's capabilities via a local HTTP server (`http://localhost:6009/LocalForge/chat`).
-- **Custom System Prompts**: Define custom personas and instructions for the AI.
-- **Model Selection**: Switch between available Copilot models (e.g., GPT-4, GPT-3.5).
-
-## Prerequisites
-
-- **VS Code**: Version 1.90.0 or higher.
-- **GitHub Copilot Chat**: You must have the GitHub Copilot Chat extension installed and an active subscription.
+- **🤖 AI Chat Interface**: Seamlessly interact with GitHub Copilot models (GPT-4, GPT-3.5) from the sidebar.
+- **✨ Prompt Refinement**: Automatically enhance your prompts to get better, more precise code generation.
+- **🔌 Local Server API**: Expose Copilot's powerful capabilities to your other local tools via `http://localhost:6009`.
+- **🎭 Custom Personas**: Define custom system prompts to tailor the AI's responses to your specific workflow.
 
 ## Installation
 
-1. Clone the repository.
-2. Run `npm install` to install dependencies.
-3. Open the project in VS Code and press `F5` to launch the extension in the Extension Development Host.
+1.  Open **VS Code**.
+2.  Go to the **Extensions** view (`Ctrl+Shift+X` or `Cmd+Shift+X`).
+3.  Search for **"LocalForge"**.
+4.  Click **Install**.
+
+> **Note**: An active GitHub Copilot subscription is required to use the chat features.
 
 ## Usage
 
 ### Extension Commands
 
-Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and type "LocalForge" to see available commands:
+Access these commands via the **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
-- **Open LocalForge Chat**: `LocalForge: Open LocalForge Chat` (Shortcut: `Ctrl+Shift+L` / `Cmd+Shift+L`)
-- **Start Server**: `LocalForge: Start Server`
-- **Stop Server**: `LocalForge: Stop Server`
-- **Show API Info**: `LocalForge: Show API Info`
+- **`LocalForge: Open LocalForge Chat`** (`Ctrl+Shift+L`): Opens the AI chat sidebar.
+- **`LocalForge: Start Server`**: Starts the local API server (Default port: `6009`).
+- **`LocalForge: Stop Server`**: Stops the local API server.
+- **`LocalForge: Show API Info`**: Displays connection details for the local API.
 
 ### Local Server API
 
-Start the server using the command palette (or the button in the Sidebar). The server defaults to port `6009`.
+Power your own scripts or other local tools with GitHub Copilot by starting the LocalForge server.
 
 **Endpoint**: `POST http://localhost:6009/LocalForge/chat`
 
-**Request Body**:
+**Example Request**:
 
 ```json
 {
-  "prompt": "Your prompt text",
-  "history": [
-    { "role": "user", "content": "..." },
-    { "role": "assistant", "content": "..." }
-  ],
-  "modelId": "gps-4",
-  "systemPrompt": "Optional custom system prompt"
+  "prompt": "Write a Python script to scrape a website."
 }
 ```
 
-**Response**:
+## Contributing
 
-```json
-{
-  "result": "AI generated response"
-}
-```
+We welcome contributions!
 
-## Development
+1.  Clone the repository.
+2.  Run `npm install`.
+3.  Press `F5` to start debugging.
+4.  Run tests with `npm test`.
 
-- `npm run lint`: Run ESLint to check for code quality issues.
-- `npm test`: Run the test suite using Jest.
+## License
+
+[MIT](LICENSE)

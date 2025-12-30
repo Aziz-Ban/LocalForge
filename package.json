@@ -1,14 +1,19 @@
 {
-  "name": "smart-copilot",
+  "name": "LocalForge",
   "displayName": "LocalForge",
   "description": "Free AI-powered prompt refinement and technical specification generation",
   "version": "0.0.2",
+  "publisher": "Balitzy",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aziz-Ban/LocalForge.git"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
-    "AI",
-    "Productivity"
+    "other"
   ],
   "activationEvents": [
     "onStartupFinished"
