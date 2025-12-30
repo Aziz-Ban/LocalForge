@@ -2,7 +2,7 @@
   "name": "smart-copilot",
   "displayName": "LocalForge",
   "description": "Free AI-powered prompt refinement and technical specification generation",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.90.0"
   },
