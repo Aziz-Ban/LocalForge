@@ -1,0 +1,68 @@
+{
+  "name": "smart-copilot",
+  "displayName": "LocalForge",
+  "description": "Free AI-powered prompt refinement and technical specification generation",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Productivity"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "smart-copilot.openChat",
+        "title": "Open LocalForge Chat"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "smart-copilot-sidebar",
+          "title": "LocalForge",
+          "icon": "$(flame)"
+        }
+      ]
+    },
+    "views": {
+      "smart-copilot-sidebar": [
+        {
+          "type": "webview",
+          "id": "smart-copilot.chatView",
+          "name": "Chat"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "smart-copilot.openChat",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l"
+      }
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-cli": "^0.0.8",
+    "@vscode/test-electron": "^2.3.9",
+    "eslint": "^8.57.0",
+    "jest": "^30.2.0",
+    "typescript": "^5.4.2"
+  }
+}
