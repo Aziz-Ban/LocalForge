@@ -2,7 +2,7 @@
 
 **LocalForge** is a VS Code extension that leverages GitHub Copilot Chat models to refine prompts and generate technical specifications. It also provides a local server API to integrate Copilot with other tools.
 
-![LocalForge Icon](icon.png)
+![LocalForge Icon](media/icon.png)
 
 ## Features
 
