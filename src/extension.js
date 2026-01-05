@@ -1,7 +1,7 @@
 const vscode = require("vscode");
-const ChatViewProvider = require("./webview");
-const { startServer, stopServer, isServerRunning } = require("./server");
-const { getAvailableModels } = require("./llmService");
+const ChatViewProvider = require("./webviews/chatViewProvider");
+const { startServer, stopServer, isServerRunning } = require("./services/server");
+const { getAvailableModels } = require("./services/llmService");
 
 function activate(context) {
   vscode.window.showInformationMessage("LocalForge activated");

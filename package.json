@@ -4,7 +4,7 @@
   "description": "Start a local AI server and refine prompts using GitHub Copilot",
   "version": "0.0.2",
   "publisher": "Balitzy",
-  "icon": "icon.png",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/Aziz-Ban/LocalForge.git"
@@ -18,7 +18,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./extension.js",
+  "main": "./src/extension.js",
   "contributes": {
     "commands": [
       {
