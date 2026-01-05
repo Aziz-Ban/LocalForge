@@ -1,15 +1,15 @@
 # LocalForge
 
-**LocalForge** is your local AI companion for VS Code, leveraging GitHub Copilot Chat models to refine prompts and generate technical specifications directly within your editor. It also bridges the gap between your local environment and Copilot by providing a local server API.
+**LocalForge** is a VS Code extension that leverages GitHub Copilot Chat models to refine prompts and generate technical specifications. It also provides a local server API to integrate Copilot with other tools.
 
 ![LocalForge Icon](icon.png)
 
 ## Features
 
-- **🤖 AI Chat Interface**: Seamlessly interact with GitHub Copilot models (GPT-4, GPT-3.5) from the sidebar.
-- **✨ Prompt Refinement**: Automatically enhance your prompts to get better, more precise code generation.
-- **🔌 Local Server API**: Expose Copilot's powerful capabilities to your other local tools via `http://localhost:6009`.
-- **🎭 Custom Personas**: Define custom system prompts to tailor the AI's responses to your specific workflow.
+- **AI Chat Interface**: Interact with GitHub Copilot models (GPT-4, GPT-3.5) from the sidebar.
+- **Prompt Refinement**: Enhance prompts for better code generation.
+- **Local Server API**: Expose Copilot capabilities to local tools via `http://localhost:6009`.
+- **Custom Personas**: Define custom system prompts to tailor AI responses.
 
 ## Installation
 
@@ -33,7 +33,7 @@ Access these commands via the **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P
 
 ### Local Server API
 
-Power your own scripts or other local tools with GitHub Copilot by starting the LocalForge server.
+Start the LocalForge server to integrate GitHub Copilot with other tools.
 
 **Endpoint**: `POST http://localhost:6009/LocalForge/chat`
 
