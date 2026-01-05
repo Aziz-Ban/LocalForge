@@ -1,4 +1,4 @@
-const vscode = require("vscode");
+const vscode = require('vscode');
 
 let cachedModels = null;
 
@@ -8,7 +8,7 @@ async function getAvailableModels() {
   }
 
   try {
-    const models = await vscode.lm.selectChatModels({ vendor: "copilot" });
+    const models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
     cachedModels = models.map((m) => ({
       id: m.id,
       name: m.name,
@@ -16,7 +16,7 @@ async function getAvailableModels() {
     }));
     return cachedModels;
   } catch (error) {
-    console.error("Error fetching models:", error);
+    console.error('Error fetching models:', error);
     return [];
   }
 }
@@ -26,7 +26,7 @@ async function selectModel(modelId) {
 
   if (modelId) {
     const [selected] = await vscode.lm.selectChatModels({
-      vendor: "copilot",
+      vendor: 'copilot',
       family: modelId,
     });
     targetModel = selected;
@@ -34,18 +34,14 @@ async function selectModel(modelId) {
 
   if (!targetModel) {
     const [defaultModel] = await vscode.lm.selectChatModels({
-      vendor: "copilot",
-      family: "gpt-4.1",
+      vendor: 'copilot',
+      family: 'gpt-4.1',
     });
-    targetModel =
-      defaultModel ||
-      (await vscode.lm.selectChatModels({ vendor: "copilot" }))[0];
+    targetModel = defaultModel || (await vscode.lm.selectChatModels({ vendor: 'copilot' }))[0];
   }
 
   if (!targetModel) {
-    throw new Error(
-      "Copilot not available. Please install GitHub Copilot extension.",
-    );
+    throw new Error('Copilot not available. Please install GitHub Copilot extension.');
   }
 
   return targetModel;
@@ -62,18 +58,18 @@ async function sendChatRequest(history, modelId, systemPrompt) {
 
     messages.push(
       ...history.map((msg) =>
-        msg.role === "user"
+        msg.role === 'user'
           ? vscode.LanguageModelChatMessage.User(msg.content)
-          : vscode.LanguageModelChatMessage.Assistant(msg.content),
-      ),
+          : vscode.LanguageModelChatMessage.Assistant(msg.content)
+      )
     );
 
     const chatResponse = await targetModel.sendRequest(
       messages,
       {},
-      new vscode.CancellationTokenSource().token,
+      new vscode.CancellationTokenSource().token
     );
-    let rawResponse = "";
+    let rawResponse = '';
 
     for await (const fragment of chatResponse.text) {
       rawResponse += fragment;
@@ -81,7 +77,7 @@ async function sendChatRequest(history, modelId, systemPrompt) {
 
     return rawResponse;
   } catch (error) {
-    console.error("Error in sendChatRequest:", error);
+    console.error('Error in sendChatRequest:', error);
     throw error;
   }
 }

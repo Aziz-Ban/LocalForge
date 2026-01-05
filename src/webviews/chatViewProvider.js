@@ -1,8 +1,8 @@
-const { refinePrompt } = require("../services/promptRefiner");
-const vscode = require("vscode");
+const { refinePrompt } = require('../services/promptRefiner');
+const vscode = require('vscode');
 
 class ChatViewProvider {
-  static viewType = "smart-copilot.chatView";
+  static viewType = 'smart-copilot.chatView';
 
   constructor(extensionUri) {
     this._extensionUri = extensionUri;
@@ -28,35 +28,31 @@ class ChatViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
-        case "userPrompt":
-          console.log("Main received:", data.value);
+        case 'userPrompt':
+          console.log('Main received:', data.value);
           await this.handleUserPrompt(data.value, data.systemPrompt);
           break;
-        case "getModels":
-          const models = await vscode.commands.executeCommand(
-            "smart-copilot.getModels",
-          );
-          webviewView.webview.postMessage({ type: "models", value: models });
+        case 'getModels':
+          const models = await vscode.commands.executeCommand('smart-copilot.getModels');
+          webviewView.webview.postMessage({ type: 'models', value: models });
           break;
-        case "checkServerStatus":
-          const status = await vscode.commands.executeCommand(
-            "smart-copilot.getServerStatus",
-          );
+        case 'checkServerStatus':
+          const status = await vscode.commands.executeCommand('smart-copilot.getServerStatus');
           if (status && status.running !== this._serverRunning) {
             this._serverRunning = status.running;
             webviewView.webview.postMessage({
-              type: "serverStatus",
+              type: 'serverStatus',
               running: this._serverRunning,
               port: this._currentPort,
             });
           }
           break;
-        case "startServer":
+        case 'startServer':
           const result = /** @type {{success: boolean, port: number}} */ (
             await vscode.commands.executeCommand(
-              "smart-copilot.startServer",
+              'smart-copilot.startServer',
               parseInt(data.port),
-              data.modelId,
+              data.modelId
             )
           );
           if (result.success) {
@@ -65,32 +61,29 @@ class ChatViewProvider {
             this._currentModel = data.modelId;
           }
           webviewView.webview.postMessage({
-            type: "serverStatus",
+            type: 'serverStatus',
             running: result.success,
             port: result.port,
           });
           this._saveState();
           break;
-        case "stopServer":
-          await vscode.commands.executeCommand("smart-copilot.stopServer");
+        case 'stopServer':
+          await vscode.commands.executeCommand('smart-copilot.stopServer');
           this._serverRunning = false;
           webviewView.webview.postMessage({
-            type: "serverStatus",
+            type: 'serverStatus',
             running: false,
           });
           this._saveState();
           break;
-        case "showApiInfo":
-          await vscode.commands.executeCommand(
-            "smart-copilot.showApiInfo",
-            parseInt(data.port),
-          );
+        case 'showApiInfo':
+          await vscode.commands.executeCommand('smart-copilot.showApiInfo', parseInt(data.port));
           break;
-        case "clearHistory":
+        case 'clearHistory':
           this._history = [];
           this._saveState();
           break;
-        case "saveMessage":
+        case 'saveMessage':
           if (data.role && data.content) {
             this._saveState();
           }
@@ -109,7 +102,7 @@ class ChatViewProvider {
       currentModel: this._currentModel,
     };
 
-    this._view.webview.postMessage({ type: "saveState", state: state });
+    this._view.webview.postMessage({ type: 'saveState', state: state });
   }
 
   _restoreState() {
@@ -122,7 +115,7 @@ class ChatViewProvider {
       currentModel: this._currentModel,
     };
 
-    this._view.webview.postMessage({ type: "restoreState", state: state });
+    this._view.webview.postMessage({ type: 'restoreState', state: state });
   }
 
   async handleUserPrompt(prompt, systemPrompt) {
@@ -130,34 +123,30 @@ class ChatViewProvider {
       return;
     }
 
-    this._history.push({ role: "user", content: prompt });
+    this._history.push({ role: 'user', content: prompt });
     this._saveState();
-    this._view.webview.postMessage({ type: "status", value: "Processing..." });
+    this._view.webview.postMessage({ type: 'status', value: 'Processing...' });
 
     try {
-      const response = await refinePrompt(
-        this._history,
-        undefined,
-        systemPrompt,
-      );
+      const response = await refinePrompt(this._history, undefined, systemPrompt);
 
-      if (response.type === "question") {
-        this._history.push({ role: "assistant", content: response.text });
+      if (response.type === 'question') {
+        this._history.push({ role: 'assistant', content: response.text });
         this._saveState();
         this._view.webview.postMessage({
-          type: "question",
+          type: 'question',
           value: response.text,
           options: response.options || [],
         });
       } else {
         this._saveState();
         this._view.webview.postMessage({
-          type: "refined",
+          type: 'refined',
           value: response.text,
         });
       }
     } catch (error) {
-      this._view.webview.postMessage({ type: "error", value: error.message });
+      this._view.webview.postMessage({ type: 'error', value: error.message });
     }
   }
 
