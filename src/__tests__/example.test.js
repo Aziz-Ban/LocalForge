@@ -11,6 +11,6 @@ describe('Example Test Suite', () => {
   test('should fail - intentional failure for CI/CD demo', () => {
     // T      his test will fail to demonstrate CI/CD blocking
     expect(2 + 2).toBe(255);
-  });qsdqsd
+  });
 });
-qsdqsd             
+             
