@@ -1,82 +1,168 @@
-const { refinePrompt } = require('./promptRefiner');
-const vscode = require('vscode');
+const { refinePrompt } = require("./promptRefiner");
+const vscode = require("vscode");
 
 class ChatViewProvider {
-    static viewType = 'smart-copilot.chatView';
+  static viewType = "smart-copilot.chatView";
 
-    constructor(extensionUri) {
-        this._extensionUri = extensionUri;
-        this._history = [];
+  constructor(extensionUri) {
+    this._extensionUri = extensionUri;
+    this._history = [];
+    this._serverRunning = false;
+    this._currentPort = 6009;
+    this._currentModel = null;
+  }
+
+  resolveWebviewView(webviewView) {
+    this._view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri],
+    };
+
+    webviewView.webview.html = this._getHtmlForWebview();
+
+    setTimeout(() => {
+      this._restoreState();
+    }, 100);
+
+    webviewView.webview.onDidReceiveMessage(async (data) => {
+      switch (data.type) {
+        case "userPrompt":
+          console.log("Main received:", data.value);
+          await this.handleUserPrompt(data.value, data.systemPrompt);
+          break;
+        case "getModels":
+          const models = await vscode.commands.executeCommand(
+            "smart-copilot.getModels",
+          );
+          webviewView.webview.postMessage({ type: "models", value: models });
+          break;
+        case "checkServerStatus":
+          const status = await vscode.commands.executeCommand(
+            "smart-copilot.getServerStatus",
+          );
+          if (status && status.running !== this._serverRunning) {
+            this._serverRunning = status.running;
+            webviewView.webview.postMessage({
+              type: "serverStatus",
+              running: this._serverRunning,
+              port: this._currentPort,
+            });
+          }
+          break;
+        case "startServer":
+          const result = /** @type {{success: boolean, port: number}} */ (
+            await vscode.commands.executeCommand(
+              "smart-copilot.startServer",
+              parseInt(data.port),
+              data.modelId,
+            )
+          );
+          if (result.success) {
+            this._serverRunning = true;
+            this._currentPort = result.port;
+            this._currentModel = data.modelId;
+          }
+          webviewView.webview.postMessage({
+            type: "serverStatus",
+            running: result.success,
+            port: result.port,
+          });
+          this._saveState();
+          break;
+        case "stopServer":
+          await vscode.commands.executeCommand("smart-copilot.stopServer");
+          this._serverRunning = false;
+          webviewView.webview.postMessage({
+            type: "serverStatus",
+            running: false,
+          });
+          this._saveState();
+          break;
+        case "showApiInfo":
+          await vscode.commands.executeCommand(
+            "smart-copilot.showApiInfo",
+            parseInt(data.port),
+          );
+          break;
+        case "clearHistory":
+          this._history = [];
+          this._saveState();
+          break;
+        case "saveMessage":
+          if (data.role && data.content) {
+            this._saveState();
+          }
+          break;
+      }
+    });
+  }
+
+  _saveState() {
+    if (!this._view) return;
+
+    const state = {
+      history: this._history,
+      serverRunning: this._serverRunning,
+      currentPort: this._currentPort,
+      currentModel: this._currentModel,
+    };
+
+    this._view.webview.postMessage({ type: "saveState", state: state });
+  }
+
+  _restoreState() {
+    if (!this._view) return;
+
+    const state = {
+      history: this._history,
+      serverRunning: this._serverRunning,
+      currentPort: this._currentPort,
+      currentModel: this._currentModel,
+    };
+
+    this._view.webview.postMessage({ type: "restoreState", state: state });
+  }
+
+  async handleUserPrompt(prompt, systemPrompt) {
+    if (!this._view) {
+      return;
     }
 
-    resolveWebviewView(webviewView) {
-        this._view = webviewView;
+    this._history.push({ role: "user", content: prompt });
+    this._saveState();
+    this._view.webview.postMessage({ type: "status", value: "Processing..." });
 
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [
-                this._extensionUri
-            ]
-        };
+    try {
+      const response = await refinePrompt(
+        this._history,
+        undefined,
+        systemPrompt,
+      );
 
-        webviewView.webview.html = this._getHtmlForWebview();
-
-        webviewView.webview.onDidReceiveMessage(async (data) => {
-            switch (data.type) {
-                case 'userPrompt':
-                    console.log('Main received:', data.value);
-                    await this.handleUserPrompt(data.value, data.systemPrompt);
-                    break;
-                case 'getModels':
-                    const models = await vscode.commands.executeCommand('smart-copilot.getModels');
-                    webviewView.webview.postMessage({ type: 'models', value: models });
-                    break;
-                case 'startServer':
-                    const result = /** @type {{success: boolean, port: number}} */ (await vscode.commands.executeCommand('smart-copilot.startServer', parseInt(data.port), data.modelId));
-                    webviewView.webview.postMessage({ type: 'serverStatus', running: result.success, port: result.port });
-                    break;
-                case 'stopServer':
-                    await vscode.commands.executeCommand('smart-copilot.stopServer');
-                    webviewView.webview.postMessage({ type: 'serverStatus', running: false });
-                    break;
-                case 'showApiInfo':
-                    await vscode.commands.executeCommand('smart-copilot.showApiInfo', parseInt(data.port));
-                    break;
-                case 'clearHistory':
-                    this._history = [];
-                    break;
-            }
+      if (response.type === "question") {
+        this._history.push({ role: "assistant", content: response.text });
+        this._saveState();
+        this._view.webview.postMessage({
+          type: "question",
+          value: response.text,
+          options: response.options || [],
         });
+      } else {
+        this._saveState();
+        this._view.webview.postMessage({
+          type: "refined",
+          value: response.text,
+        });
+      }
+    } catch (error) {
+      this._view.webview.postMessage({ type: "error", value: error.message });
     }
+  }
 
-    async handleUserPrompt(prompt, systemPrompt) {
-        if (!this._view) { return; }
-        
-        // Add user message to history
-        this._history.push({ role: 'user', content: prompt });
-        this._view.webview.postMessage({ type: 'status', value: 'Thinking... ✨' });
-
-        try {
-            const response = await refinePrompt(this._history, undefined, systemPrompt);
-            
-            if (response.type === 'question') {
-                this._history.push({ role: 'assistant', content: response.text });
-                this._view.webview.postMessage({ 
-                    type: 'question', 
-                    value: response.text, 
-                    options: response.options || [] 
-                });
-            } else {
-                this._view.webview.postMessage({ type: 'refined', value: response.text });
-            }
-
-        } catch (error) {
-            this._view.webview.postMessage({ type: 'error', value: error.message });
-        }
-    }
-
-    _getHtmlForWebview() {
-        return `<!DOCTYPE html>
+  _getHtmlForWebview() {
+    return `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
@@ -113,7 +199,6 @@ class ChatViewProvider {
                     color: var(--text-color);
                 }
 
-                /* Header */
                 header {
                     padding: 12px 16px;
                     background: var(--vscode-sideBar-background);
@@ -137,7 +222,6 @@ class ChatViewProvider {
                     gap: 8px;
                 }
 
-                /* Status Dot */
                 .status-badge {
                     display: flex;
                     align-items: center;
@@ -191,15 +275,12 @@ class ChatViewProvider {
                 .icon-btn:hover { background: rgba(128, 128, 128, 0.1); color: var(--vscode-foreground); }
                 .icon-btn svg { width: 22px; height: 22px; fill: currentColor; transition: transform 0.5s ease; }
                 
-                /* Rotate gear on hover */
                 #toggle-server-btn:hover svg { transform: rotate(90deg); }
                 #toggle-server-btn.active svg { transform: rotate(180deg); color: var(--primary-color); }
                 #toggle-server-btn.active { background: rgba(0, 132, 255, 0.1); }
                 
-                /* New Chat hover */
                 #new-chat-btn:hover svg { transform: scale(1.1); }
 
-                /* Server Panel */
                 .server-panel-wrapper {
                     overflow: hidden;
                     transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
@@ -290,7 +371,6 @@ class ChatViewProvider {
                     margin-top: 8px;
                 }
 
-                /* Buttons */
                 .btn {
                     flex: 1;
                     padding: 10px;
@@ -335,7 +415,6 @@ class ChatViewProvider {
                 }
                 .btn-icon:hover { background: var(--primary-hover); }
 
-                /* Chat Area */
                 #chat-container {
                     flex: 1;
                     padding: 20px;
@@ -399,7 +478,6 @@ class ChatViewProvider {
                     border-radius: 12px;
                 }
 
-                /* Input Area */
                 .input-container {
                     padding: 16px 20px;
                     background: var(--vscode-editor-background);
@@ -446,7 +524,6 @@ class ChatViewProvider {
                 .send-icon-btn:hover { opacity: 1; transform: scale(1.1) rotate(-10deg); }
                 .send-icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
 
-                /* Scrollbar */
                 ::-webkit-scrollbar { width: 6px; }
                 ::-webkit-scrollbar-track { background: transparent; }
                 ::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.3); border-radius: 3px; }
@@ -511,7 +588,7 @@ class ChatViewProvider {
             <div id="chat-container">
                 <div id="welcome-msg" style="text-align: center; margin-top: 40px; opacity: 0.4; display:flex; flex-direction:column; align-items:center; gap:10px;">
                     <svg viewBox="0 0 24 24" style="width:48px;height:48px;fill:currentColor;"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m0 14H6l-2 2V4h16v12z"/></svg>
-                    <span style="font-size:13px; font-weight:500;">LocalForge Ready</span>
+                    <span style="font-size:13px; font-weight:500;">LocalForge</span>
                 </div>
             </div>
 
@@ -526,6 +603,7 @@ class ChatViewProvider {
 
             <script>
                 const vscode = acquireVsCodeApi();
+                const previousState = vscode.getState() || {};
                 
                 const chat = document.getElementById('chat-container');
                 const inp = document.getElementById('prompt-input');
@@ -550,21 +628,62 @@ class ChatViewProvider {
                 const txtSystem = document.getElementById('system-prompt-input');
 
                 let isServerRunning = false;
+                let chatMessages = [];
 
                 vscode.postMessage({ type: 'getModels' });
+                vscode.postMessage({ type: 'checkServerStatus' });
+                
+                // Restore from VS Code state
+                if (previousState.chatMessages) {
+                    chatMessages = previousState.chatMessages;
+                    restoreChatMessages();
+                }
+                if (previousState.serverRunning) {
+                    isServerRunning = previousState.serverRunning;
+                    updateStatus('Active: Port ' + (previousState.currentPort || 6009), true);
+                }
+                if (previousState.currentPort) {
+                    portInp.value = previousState.currentPort;
+                }
+                if (previousState.currentModel) {
+                    setTimeout(() => {
+                        if (modelSel.querySelector('option[value="' + previousState.currentModel + '"]')) {
+                            modelSel.value = previousState.currentModel;
+                        }
+                    }, 100);
+                }
+                
                 inp.focus();
+
+                function restoreChatMessages() {
+                    const welcome = document.getElementById('welcome-msg');
+                    if (welcome) welcome.remove();
+                    
+                    chatMessages.forEach(msg => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'message-wrapper ' + msg.type;
+                        
+                        const bubble = document.createElement('div');
+                        bubble.className = 'message-bubble';
+                        bubble.textContent = msg.text;
+                        
+                        wrapper.appendChild(bubble);
+                        chat.appendChild(wrapper);
+                    });
+                    chat.scrollTop = chat.scrollHeight;
+                }
 
                 // New Chat
                 btnNewChat.onclick = () => {
-                   chat.innerHTML = \`
-                    <div style="text-align: center; margin-top: 40px; opacity: 0.4; display:flex; flex-direction:column; align-items:center; gap:10px;">
-                        <svg viewBox="0 0 24 24" style="width:48px;height:48px;fill:currentColor;"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m0 14H6l-2 2V4h16v12z"/></svg>
-                        <span style="font-size:13px; font-weight:500;">LocalForge Ready</span>
-                    </div>\`;
+                   chat.innerHTML = '<div id="welcome-msg" style="text-align: center; margin-top: 40px; opacity: 0.4; display:flex; flex-direction:column; align-items:center; gap:10px;">' +
+                        '<svg viewBox="0 0 24 24" style="width:48px;height:48px;fill:currentColor;"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m0 14H6l-2 2V4h16v12z"/></svg>' +
+                        '<span style="font-size:13px; font-weight:500;">LocalForge</span>' +
+                    '</div>';
+                   chatMessages = [];
+                   vscode.setState({ ...vscode.getState(), chatMessages: [] });
                    vscode.postMessage({ type: 'clearHistory' });
                 };
 
-                // Smooth Toggle
                 btnToggleServer.onclick = () => {
                    const collapsed = serverPanel.classList.toggle('collapsed');
                    btnToggleServer.classList.toggle('active', !collapsed);
@@ -633,6 +752,12 @@ class ChatViewProvider {
                     wrapper.appendChild(bubble);
                     chat.appendChild(wrapper);
                     chat.scrollTop = chat.scrollHeight;
+                    
+                    chatMessages.push({ text, type });
+                    vscode.setState({ 
+                        ...vscode.getState(), 
+                        chatMessages: chatMessages 
+                    });
                 }
 
                 function sendMessage() {
@@ -653,6 +778,29 @@ class ChatViewProvider {
                     const msg = event.data;
 
                     switch (msg.type) {
+                        case 'saveState':
+                            if (msg.state) {
+                                vscode.setState({
+                                    ...vscode.getState(),
+                                    serverRunning: msg.state.serverRunning,
+                                    currentPort: msg.state.currentPort,
+                                    currentModel: msg.state.currentModel
+                                });
+                            }
+                            break;
+                            
+                        case 'restoreState':
+                            if (msg.state) {
+                                if (msg.state.serverRunning) {
+                                    isServerRunning = true;
+                                    updateStatus('Active: Port ' + msg.state.currentPort, true);
+                                }
+                                if (msg.state.currentPort) {
+                                    portInp.value = msg.state.currentPort;
+                                }
+                            }
+                            break;
+                            
                         case 'models':
                             modelSel.innerHTML = '';
                             if (msg.value && msg.value.length) {
@@ -674,8 +822,17 @@ class ChatViewProvider {
                             isServerRunning = msg.running;
                             if (isServerRunning) {
                                 updateStatus('Active: Port ' + msg.port, true);
+                                vscode.setState({ 
+                                    ...vscode.getState(), 
+                                    serverRunning: true, 
+                                    currentPort: msg.port 
+                                });
                             } else {
                                 updateStatus('Stopped', false);
+                                vscode.setState({ 
+                                    ...vscode.getState(), 
+                                    serverRunning: false 
+                                });
                             }
                             break;
 
@@ -721,7 +878,7 @@ class ChatViewProvider {
             </script>
         </body>
         </html>`;
-    }
+  }
 }
 
 module.exports = ChatViewProvider;

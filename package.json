@@ -1,7 +1,7 @@
 {
   "name": "LocalForge",
   "displayName": "LocalForge",
-  "description": "Free AI-powered prompt refinement and technical specification generation",
+  "description": "Start a local AI server and refine prompts using GitHub Copilot",
   "version": "0.0.2",
   "publisher": "Balitzy",
   "icon": "icon.png",
