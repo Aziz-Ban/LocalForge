@@ -1,4 +1,4 @@
-const { refinePrompt } = require("./promptRefiner");
+const { refinePrompt } = require("../services/promptRefiner");
 const vscode = require("vscode");
 
 class ChatViewProvider {
