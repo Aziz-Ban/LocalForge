@@ -2,7 +2,7 @@
   "name": "LocalForge",
   "displayName": "LocalForge",
   "description": "Start a local AI server and refine prompts using GitHub Copilot",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "Balitzy",
   "icon": "media/icon.png",
   "repository": {
