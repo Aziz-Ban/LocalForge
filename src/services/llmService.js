@@ -12,7 +12,7 @@ async function getAvailableModels() {
     cachedModels = models.map((m) => ({
       id: m.id,
       name: m.name,
-      family: m.family,
+      family: m.family,pqdsiuh
     }));
     return cachedModels;
   } catch (error) {
