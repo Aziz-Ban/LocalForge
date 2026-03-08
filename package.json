@@ -1,8 +1,8 @@
 {
   "name": "LocalForge",
-  "displayName": "LocalForge",
-  "description": "Start a local AI server and refine prompts using GitHub Copilot",
-  "version": "0.0.3",
+  "displayName": "Local Forge",
+  "description": "Run multiple local AI agents powered by GitHub Copilot",
+  "version": "1.0.3",
   "publisher": "Balitzy",
   "icon": "media/icon.png",
   "repository": {
@@ -30,7 +30,7 @@
       "activitybar": [
         {
           "id": "smart-copilot-sidebar",
-          "title": "LocalForge",
+          "title": "Local Forge",
           "icon": "$(flame)"
         }
       ]
@@ -39,8 +39,8 @@
       "smart-copilot-sidebar": [
         {
           "type": "webview",
-          "id": "smart-copilot.chatView",
-          "name": "Chat"
+          "id": "smart-copilot.agentView",
+          "name": "Agents"
         }
       ]
     },
