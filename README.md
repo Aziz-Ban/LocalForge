@@ -1,5 +1,7 @@
 # Local Forge
 
+![LocalForge Icon](media/icon.png)
+
 Local Forge is a VS Code extension that lets you run multiple concurrent AI API servers locally, completely powered by your active GitHub Copilot subscription. It securely transforms your IDE into a local AI provider for any LLM-based tool or script you use.
 
 ## Features
