@@ -31,7 +31,7 @@ export default [
     },
   },
   {
-    files: ['__tests__/**/*.js', '__mocks__/**/*.js'],
+    files: ['__tests__/**/*.js', '__mocks__/**/*.js', 'src/__tests__/**/*.js'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -43,6 +43,17 @@ export default [
     rules: {
       'no-undef': 'off',
       'no-unused-vars': 'warn',
+    },
+  },
+  {
+    files: ['src/webviews/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+    rules: {
+      'no-undef': 'warn',
     },
   },
 ];

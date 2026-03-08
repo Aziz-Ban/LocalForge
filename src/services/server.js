@@ -1,24 +1,33 @@
 const http = require('http');
-const { sendChatRequest } = require('./llmService');
+const llmService = require('./llmService');
 
-let server;
+const servers = new Map();
 
-function isServerRunning() {
-  return server !== null && server !== undefined;
+function isAgentRunning(agentId) {
+  const s = servers.get(agentId);
+  return s != null && s.listening;
 }
 
-function startServer(port = 6009, modelId) {
+function getRunningAgents() {
+  const ids = [];
+  for (const [id, s] of servers) {
+    if (s.listening) ids.push(id);
+  }
+  return ids;
+}
+
+function createServer(agentId, port = 6009, modelId, defaultSystemPrompt) {
   return new Promise((resolve, reject) => {
-    if (server) {
-      if (server.listening) {
-        reject(new Error('Server is already running'));
+    if (servers.has(agentId)) {
+      const existing = servers.get(agentId);
+      if (existing.listening) {
+        reject(new Error(`Agent "${agentId}" is already running.`));
         return;
-      } else {
-        server = null;
       }
+      servers.delete(agentId);
     }
 
-    server = http.createServer(async (req, res) => {
+    const server = http.createServer(async (req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -50,13 +59,16 @@ function startServer(port = 6009, modelId) {
             }
 
             const requestModelId = data.modelId || modelId;
-            const systemPrompt = data.systemPrompt;
-            const responseText = await sendChatRequest(history, requestModelId, systemPrompt);
+            const systemPrompt = data.systemPrompt || defaultSystemPrompt;
+            const responseText = await llmService.sendChatRequest(
+              history,
+              requestModelId,
+              systemPrompt
+            );
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ result: responseText }));
           } catch (error) {
-            console.error('Server error:', error);
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: error.message }));
           }
@@ -67,49 +79,53 @@ function startServer(port = 6009, modelId) {
       }
     });
 
+    servers.set(agentId, server);
+
     server.listen(port, () => {
-      console.log(`LocalForge server is running on http://localhost:${port}`);
-      resolve(port);
+      const addr = server.address();
+      const actualPort = typeof addr === 'object' && addr ? addr.port : port;
+      resolve(actualPort);
     });
 
     server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        server = null;
-        reject(new Error(`Port ${port} is already in use. Choose a different port.`));
+      servers.delete(agentId);
+      if ('code' in err && err.code === 'EADDRINUSE') {
+        reject(new Error(`Port ${port} is already in use.`));
       } else {
-        server = null;
         reject(err);
       }
     });
   });
 }
 
-function stopServer() {
+function destroyServer(agentId) {
   return new Promise((resolve, reject) => {
-    if (server) {
-      server.close((err) => {
-        if (err) {
-          console.error('Error stopping server:', err);
-          server = null;
-          reject(err);
-        } else {
-          console.log('LocalForge server stopped');
-          server = null;
-          resolve();
-        }
-      });
-
-      setTimeout(() => {
-        if (server && server.listening) {
-          if (typeof server.closeAllConnections === 'function') {
-            server.closeAllConnections();
-          }
-        }
-      }, 1000);
-    } else {
+    const server = servers.get(agentId);
+    if (!server) {
       resolve();
+      return;
     }
+
+    server.close((err) => {
+      servers.delete(agentId);
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+
+    setTimeout(() => {
+      if (server.listening && typeof server.closeAllConnections === 'function') {
+        server.closeAllConnections();
+      }
+    }, 1000);
   });
 }
 
-module.exports = { startServer, stopServer, isServerRunning };
+async function destroyAll() {
+  const ids = [...servers.keys()];
+  await Promise.allSettled(ids.map((id) => destroyServer(id)));
+}
+
+module.exports = { createServer, destroyServer, destroyAll, isAgentRunning, getRunningAgents };

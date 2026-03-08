@@ -1,123 +1,152 @@
 const vscode = require('vscode');
-const ChatViewProvider = require('./webviews/chatViewProvider');
-const { startServer, stopServer, isServerRunning } = require('./services/server');
+const AgentViewProvider = require('./webviews/agentViewProvider');
+const {
+  createServer,
+  destroyServer,
+  destroyAll,
+  isAgentRunning,
+  getRunningAgents,
+} = require('./services/server');
 const { getAvailableModels } = require('./services/llmService');
 
-function activate(context) {
-  vscode.window.showInformationMessage('LocalForge activated');
+const AGENTS_KEY = 'localforge.agents';
 
-  const outputChannel = vscode.window.createOutputChannel('LocalForge API');
+function activate(context) {
+  const outputChannel = vscode.window.createOutputChannel('Local Forge');
   context.subscriptions.push(outputChannel);
 
-  const showApiInfo = (port) => {
+  let agents = context.globalState.get(AGENTS_KEY, []);
+
+  function saveAgents() {
+    context.globalState.update(AGENTS_KEY, agents);
+  }
+
+  const showApiInfo = (agent) => {
     outputChannel.clear();
-    outputChannel.appendLine(`URL: http://localhost:${port}/LocalForge/chat`);
-    outputChannel.appendLine(' Method: POST');
+    outputChannel.appendLine(`Agent: ${agent.name}`);
+    outputChannel.appendLine(`URL:   http://localhost:${agent.port}/LocalForge/chat`);
+    outputChannel.appendLine(`Method: POST`);
     outputChannel.appendLine('--------------------------------------------------');
     outputChannel.appendLine('Request Body (JSON):');
-    outputChannel.appendLine(
-      JSON.stringify(
-        {
-          prompt: 'Your prompt here...',
-        },
-        null,
-        2
-      )
-    );
+    const exampleBody = { prompt: 'Your prompt here...' };
+    if (agent.systemPrompt) {
+      exampleBody.systemPrompt = agent.systemPrompt;
+    }
+    outputChannel.appendLine(JSON.stringify(exampleBody, null, 2));
     outputChannel.appendLine('--------------------------------------------------');
     outputChannel.appendLine('Expected Response (JSON):');
-    outputChannel.appendLine(
-      JSON.stringify(
-        {
-          result: 'The refined or generated response text.',
-        },
-        null,
-        2
-      )
-    );
+    outputChannel.appendLine(JSON.stringify({ result: 'The AI response text.' }, null, 2));
+    if (agent.systemPrompt) {
+      outputChannel.appendLine('--------------------------------------------------');
+      outputChannel.appendLine('Default System Prompt (Context):');
+      outputChannel.appendLine(agent.systemPrompt);
+    }
     outputChannel.appendLine('--------------------------------------------------');
     outputChannel.show();
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('smart-copilot.showApiInfo', (port) => {
-      showApiInfo(port || 6009);
+    vscode.commands.registerCommand('smart-copilot.showApiInfo', (agent) => {
+      if (agent) showApiInfo(agent);
     })
   );
 
   getAvailableModels().catch(console.error);
-  context.subscriptions.push(
-    vscode.commands.registerCommand('smart-copilot.startServer', async (port, modelId) => {
-      try {
-        const actualPort = await startServer(port, modelId);
-
-        vscode.window
-          .showInformationMessage(
-            `LocalForge Server started on port ${actualPort}`,
-            'Show API Usage'
-          )
-          .then((selection) => {
-            if (selection === 'Show API Usage') {
-              showApiInfo(actualPort);
-            }
-          });
-
-        return { success: true, port: actualPort };
-      } catch (err) {
-        vscode.window.showErrorMessage(`Failed to start server: ${err.message}`);
-        return { success: false, error: err.message };
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('smart-copilot.stopServer', async () => {
-      try {
-        await stopServer();
-        vscode.window.showInformationMessage('LocalForge Server stopped');
-        return { success: true };
-      } catch (err) {
-        vscode.window.showErrorMessage(`Failed to stop server: ${err.message}`);
-        return { success: false, error: err.message };
-      }
-    })
-  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('smart-copilot.getModels', async () => {
-      const models = await getAvailableModels();
-      return models;
+      return await getAvailableModels();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('smart-copilot.getServerStatus', () => {
-      return { running: isServerRunning() };
+    vscode.commands.registerCommand('smart-copilot.startAgent', async (agent) => {
+      try {
+        const actualPort = await createServer(
+          agent.id,
+          agent.port,
+          agent.modelId,
+          agent.systemPrompt || undefined
+        );
+        return { success: true, port: actualPort };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     })
   );
-
-  const provider = new ChatViewProvider(context.extensionUri);
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider, {
-      webviewOptions: {
-        retainContextWhenHidden: true,
-      },
+    vscode.commands.registerCommand('smart-copilot.stopAgent', async (agentId) => {
+      try {
+        await destroyServer(agentId);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     })
   );
 
-  let disposable = vscode.commands.registerCommand('smart-copilot.openChat', () => {
-    vscode.commands.executeCommand('workbench.view.extension.smart-copilot-sidebar');
-  });
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.getAgents', () => {
+      return agents.map((a) => ({ ...a, running: isAgentRunning(a.id) }));
+    })
+  );
 
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.saveAgents', (updatedAgents) => {
+      agents = updatedAgents;
+      saveAgents();
+      return { success: true };
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.getRunningAgents', () => {
+      return getRunningAgents();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.startAllAgents', async () => {
+      let started = 0;
+      for (const a of agents) {
+        if (!isAgentRunning(a.id)) {
+          try {
+            await createServer(a.id, a.port, a.modelId, a.systemPrompt);
+            started++;
+          } catch (e) {
+            console.error(`Failed to start agent ${a.name}:`, e);
+          }
+        }
+      }
+      return { success: true, count: started };
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.stopAllAgents', async () => {
+      await destroyAll();
+      return { success: true };
+    })
+  );
+
+  const provider = new AgentViewProvider(context.extensionUri);
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(AgentViewProvider.viewType, provider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.openChat', () => {
+      vscode.commands.executeCommand('workbench.view.extension.smart-copilot-sidebar');
+    })
+  );
 }
 
 function deactivate() {
-  return stopServer();
+  return destroyAll();
 }
 
-module.exports = {
-  activate,
-  deactivate,
-};
+module.exports = { activate, deactivate };
