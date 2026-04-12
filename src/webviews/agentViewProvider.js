@@ -31,6 +31,20 @@ class AgentViewProvider {
           await vscode.commands.executeCommand('smart-copilot.saveAgents', data.value);
           break;
         }
+        case 'getProjects': {
+          const projects = await vscode.commands.executeCommand('smart-copilot.getProjects');
+          webviewView.webview.postMessage({ type: 'projects', value: projects });
+          break;
+        }
+        case 'saveProjects': {
+          await vscode.commands.executeCommand('smart-copilot.saveProjects', data.value);
+          break;
+        }
+        case 'getCurrentWorkspace': {
+          const workspace = await vscode.commands.executeCommand('smart-copilot.getCurrentWorkspace');
+          webviewView.webview.postMessage({ type: 'currentWorkspace', value: workspace });
+          break;
+        }
         case 'startAgent': {
           const result = /** @type {{success:boolean, port?:number, error?:string}} */ (
             await vscode.commands.executeCommand('smart-copilot.startAgent', data.agent)
