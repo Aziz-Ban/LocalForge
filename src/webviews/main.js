@@ -1,4 +1,5 @@
 // @ts-nocheck
+/* global acquireVsCodeApi, FlowChart, ListView, Sidebar */
 /**
  * main.js — Core state, VS Code IPC, and message routing.
  * Exposes window.LF for use by sidebar.js, list-view.js, flowchart.js.
@@ -15,8 +16,8 @@ window.LF = {
   currentWorkspace: null,
   GLOBAL_ID: '__global__',
   activeProjectId: '__global__',
-  editingId: null,        // 'new' | agent.id | null
-  activeView: 'list',     // 'list' | 'flowchart'
+  editingId: null, // 'new' | agent.id | null
+  activeView: 'list', // 'list' | 'flowchart'
   toastTimer: null,
   pendingConfirmAction: null,
 
@@ -129,7 +130,9 @@ document.getElementById('btn-confirm-cancel').addEventListener('click', LF.close
 
 // ── View toggle buttons ──────────────────────────────────────────────────────
 document.getElementById('btn-view-list').addEventListener('click', () => LF.switchView('list'));
-document.getElementById('btn-view-flow').addEventListener('click', () => LF.switchView('flowchart'));
+document
+  .getElementById('btn-view-flow')
+  .addEventListener('click', () => LF.switchView('flowchart'));
 
 // ── Header action buttons ────────────────────────────────────────────────────
 document.getElementById('btn-refresh').addEventListener('click', () => {
@@ -138,21 +141,27 @@ document.getElementById('btn-refresh').addEventListener('click', () => {
 });
 
 document.getElementById('btn-start-all').addEventListener('click', () => {
-  const list = LF.activeProjectId === LF.GLOBAL_ID
-    ? LF.agents.filter(a => !a.projectId || a.projectId === LF.GLOBAL_ID)
-    : LF.agents.filter(a => a.projectId === LF.activeProjectId);
+  const list =
+    LF.activeProjectId === LF.GLOBAL_ID
+      ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
+      : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
   if (!list.length) return LF.toast('No agents to start', '');
   LF.toast('Starting agents…', '');
-  list.forEach(a => { if (!a.running) _vscode.postMessage({ type: 'startAgent', agent: a }); });
+  list.forEach((a) => {
+    if (!a.running) _vscode.postMessage({ type: 'startAgent', agent: a });
+  });
 });
 
 document.getElementById('btn-stop-all').addEventListener('click', () => {
-  const list = LF.activeProjectId === LF.GLOBAL_ID
-    ? LF.agents.filter(a => !a.projectId || a.projectId === LF.GLOBAL_ID)
-    : LF.agents.filter(a => a.projectId === LF.activeProjectId);
+  const list =
+    LF.activeProjectId === LF.GLOBAL_ID
+      ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
+      : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
   if (!list.length) return LF.toast('No agents to stop', '');
   LF.toast('Stopping agents…', '');
-  list.forEach(a => { if (a.running) _vscode.postMessage({ type: 'stopAgent', agentId: a.id }); });
+  list.forEach((a) => {
+    if (a.running) _vscode.postMessage({ type: 'stopAgent', agentId: a.id });
+  });
 });
 
 // ── VS Code message handler ──────────────────────────────────────────────────
@@ -179,8 +188,8 @@ window.addEventListener('message', (e) => {
     case 'agents':
       LF.agents = msg.value || [];
       // Migrate orphan agents to global (no projectId)
-      if (LF.agents.some(a => !a.projectId)) {
-        LF.agents = LF.agents.map(a => ({ ...a, projectId: a.projectId || '' }));
+      if (LF.agents.some((a) => !a.projectId)) {
+        LF.agents = LF.agents.map((a) => ({ ...a, projectId: a.projectId || '' }));
         LF.persistAgents();
       }
       LF._got.agents = true;
@@ -189,8 +198,11 @@ window.addEventListener('message', (e) => {
 
     case 'agentStarted':
       if (msg.success) {
-        const a = LF.agents.find(x => x.id === msg.agentId);
-        if (a) { a.running = true; if (msg.port) a.port = msg.port; }
+        const a = LF.agents.find((x) => x.id === msg.agentId);
+        if (a) {
+          a.running = true;
+          if (msg.port) a.port = msg.port;
+        }
         LF.toast('Agent started on port ' + msg.port, 'success');
       } else {
         LF.toast(msg.error || 'Failed to start', 'error');
@@ -201,7 +213,7 @@ window.addEventListener('message', (e) => {
 
     case 'agentStopped':
       if (msg.success) {
-        const a = LF.agents.find(x => x.id === msg.agentId);
+        const a = LF.agents.find((x) => x.id === msg.agentId);
         if (a) a.running = false;
         LF.toast('Agent stopped', 'success');
       } else {

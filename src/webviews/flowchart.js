@@ -1,4 +1,5 @@
 // @ts-nocheck
+/* global LF */
 /**
  * flowchart.js — Visual node canvas for agents.
  * Uses window.LF shared state.
@@ -8,7 +9,9 @@ window.FlowChart = (() => {
   const GRID_ROW = 110;
   const COLS = 2;
 
-  function getContainer() { return document.getElementById('flow-canvas'); }
+  function getContainer() {
+    return document.getElementById('flow-canvas');
+  }
 
   function posFor(idx) {
     return {
@@ -22,16 +25,18 @@ window.FlowChart = (() => {
     if (!canvas) return;
     canvas.innerHTML = '';
 
-    const visible = LF.activeProjectId === LF.GLOBAL_ID
-      ? LF.agents.filter(a => !a.projectId || a.projectId === LF.GLOBAL_ID)
-      : LF.agents.filter(a => a.projectId === LF.activeProjectId);
+    const visible =
+      LF.activeProjectId === LF.GLOBAL_ID
+        ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
+        : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
 
     if (!visible.length) {
-      canvas.innerHTML = '<div class="flow-empty">No agents in this project.<br>Switch to list view to add one.</div>';
+      canvas.innerHTML =
+        '<div class="flow-empty">No agents in this project.<br>Switch to list view to add one.</div>';
       return;
     }
 
-    canvas.style.minHeight = (Math.ceil(visible.length / COLS) * GRID_ROW + 48) + 'px';
+    canvas.style.minHeight = Math.ceil(visible.length / COLS) * GRID_ROW + 48 + 'px';
 
     visible.forEach((a, idx) => {
       const { x, y } = posFor(idx);
@@ -42,16 +47,22 @@ window.FlowChart = (() => {
       node.style.left = x + 'px';
       node.style.top = y + 'px';
       node.innerHTML =
-        '<div class="fc-node-dot ' + (isOn ? 'on' : 'off') + '"></div>' +
+        '<div class="fc-node-dot ' +
+        (isOn ? 'on' : 'off') +
+        '"></div>' +
         '<div class="fc-node-body">' +
-          '<div class="fc-node-name">' + LF.esc(a.name) + '</div>' +
-          '<div class="fc-node-sub">:' + a.port + '</div>' +
-          '<div class="fc-node-status"></div>' +
+        '<div class="fc-node-name">' +
+        LF.esc(a.name) +
+        '</div>' +
+        '<div class="fc-node-sub">:' +
+        a.port +
+        '</div>' +
+        '<div class="fc-node-status"></div>' +
         '</div>' +
         '<div class="fc-node-actions">' +
-          (isOn
-            ? '<button class="fc-btn fc-stop" data-stop="' + a.id + '">■</button>'
-            : '<button class="fc-btn fc-start" data-start="' + a.id + '">▶</button>') +
+        (isOn
+          ? '<button class="fc-btn fc-stop" data-stop="' + a.id + '">■</button>'
+          : '<button class="fc-btn fc-start" data-start="' + a.id + '">▶</button>') +
         '</div>' +
         '<div class="fc-preview"></div>';
       canvas.appendChild(node);
@@ -94,11 +105,16 @@ window.FlowChart = (() => {
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.start) {
-      const a = LF.agents.find(x => x.id === t.dataset.start);
-      if (a) { t.textContent = '…'; t.disabled = true; LF.vscode.postMessage({ type: 'startAgent', agent: a }); }
+      const a = LF.agents.find((x) => x.id === t.dataset.start);
+      if (a) {
+        t.textContent = '…';
+        t.disabled = true;
+        LF.vscode.postMessage({ type: 'startAgent', agent: a });
+      }
     }
     if (t.dataset.stop) {
-      t.textContent = '…'; t.disabled = true;
+      t.textContent = '…';
+      t.disabled = true;
       LF.vscode.postMessage({ type: 'stopAgent', agentId: t.dataset.stop });
     }
   });

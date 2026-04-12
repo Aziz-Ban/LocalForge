@@ -6,7 +6,7 @@ const {
   destroyAll,
   isAgentRunning,
   getRunningAgents,
-  serverEvents
+  serverEvents,
 } = require('./services/server');
 const { getAvailableModels } = require('./services/llmService');
 

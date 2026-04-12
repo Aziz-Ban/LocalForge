@@ -137,4 +137,11 @@ async function destroyAll() {
   await Promise.allSettled(ids.map((id) => destroyServer(id)));
 }
 
-module.exports = { createServer, destroyServer, destroyAll, isAgentRunning, getRunningAgents, serverEvents };
+module.exports = {
+  createServer,
+  destroyServer,
+  destroyAll,
+  isAgentRunning,
+  getRunningAgents,
+  serverEvents,
+};

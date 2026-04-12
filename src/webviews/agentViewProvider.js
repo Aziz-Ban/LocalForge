@@ -41,7 +41,9 @@ class AgentViewProvider {
           break;
         }
         case 'getCurrentWorkspace': {
-          const workspace = await vscode.commands.executeCommand('smart-copilot.getCurrentWorkspace');
+          const workspace = await vscode.commands.executeCommand(
+            'smart-copilot.getCurrentWorkspace'
+          );
           webviewView.webview.postMessage({ type: 'currentWorkspace', value: workspace });
           break;
         }
