@@ -6,20 +6,49 @@ const {
   destroyAll,
   isAgentRunning,
   getRunningAgents,
+  serverEvents,
 } = require('./services/server');
 const { getAvailableModels } = require('./services/llmService');
 
 const AGENTS_KEY = 'localforge.agents';
+const PROJECTS_KEY = 'localforge.projects';
 
 function activate(context) {
   const outputChannel = vscode.window.createOutputChannel('Local Forge');
   context.subscriptions.push(outputChannel);
 
   let agents = context.globalState.get(AGENTS_KEY, []);
+  let projects = context.globalState.get(PROJECTS_KEY, []);
 
   function saveAgents() {
     context.globalState.update(AGENTS_KEY, agents);
   }
+
+  function saveProjects() {
+    context.globalState.update(PROJECTS_KEY, projects);
+  }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.getProjects', () => projects)
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.saveProjects', (updatedProjects) => {
+      projects = updatedProjects;
+      saveProjects();
+      return { success: true };
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.getCurrentWorkspace', () => {
+      const folders = vscode.workspace.workspaceFolders;
+      if (folders && folders.length > 0) {
+        return { id: folders[0].uri.fsPath, name: folders[0].name, isWorkspace: true };
+      }
+      return null;
+    })
+  );
 
   const showApiInfo = (agent) => {
     outputChannel.clear();
@@ -131,6 +160,14 @@ function activate(context) {
   );
 
   const provider = new AgentViewProvider(context.extensionUri);
+
+  serverEvents.on('activityStart', (agentId) => {
+    provider.broadcast({ type: 'agentThinking', agentId });
+  });
+
+  serverEvents.on('activity', (agentId, preview) => {
+    provider.broadcast({ type: 'agentActivity', agentId, preview: preview || '' });
+  });
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(AgentViewProvider.viewType, provider, {

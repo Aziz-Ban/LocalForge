@@ -1,7 +1,9 @@
 const http = require('http');
+const { EventEmitter } = require('events');
 const llmService = require('./llmService');
 
 const servers = new Map();
+const serverEvents = new EventEmitter();
 
 function isAgentRunning(agentId) {
   const s = servers.get(agentId);
@@ -58,6 +60,9 @@ function createServer(agentId, port = 6009, modelId, defaultSystemPrompt) {
               return;
             }
 
+            // Signal: agent is now thinking
+            serverEvents.emit('activityStart', agentId);
+
             const requestModelId = data.modelId || modelId;
             const systemPrompt = data.systemPrompt || defaultSystemPrompt;
             const responseText = await llmService.sendChatRequest(
@@ -68,6 +73,10 @@ function createServer(agentId, port = 6009, modelId, defaultSystemPrompt) {
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ result: responseText }));
+
+            // Signal: agent finished — include a snippet of the response
+            const preview = responseText ? responseText.substring(0, 80) : '';
+            serverEvents.emit('activity', agentId, preview);
           } catch (error) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: error.message }));
@@ -128,4 +137,11 @@ async function destroyAll() {
   await Promise.allSettled(ids.map((id) => destroyServer(id)));
 }
 
-module.exports = { createServer, destroyServer, destroyAll, isAgentRunning, getRunningAgents };
+module.exports = {
+  createServer,
+  destroyServer,
+  destroyAll,
+  isAgentRunning,
+  getRunningAgents,
+  serverEvents,
+};
