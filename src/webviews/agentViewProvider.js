@@ -102,6 +102,12 @@ class AgentViewProvider {
     });
   }
 
+  broadcast(message) {
+    if (this._view && this._view.webview) {
+      this._view.webview.postMessage(message);
+    }
+  }
+
   _getHtmlForWebview(webview) {
     const fs = require('fs');
     const htmlPath = vscode.Uri.joinPath(
@@ -115,13 +121,25 @@ class AgentViewProvider {
     const cssUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'src', 'webviews', 'styles.css')
     );
-    const jsUri = webview.asWebviewUri(
+    const mainJsUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'src', 'webviews', 'main.js')
+    );
+    const sidebarJsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'src', 'webviews', 'sidebar.js')
+    );
+    const listViewJsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'src', 'webviews', 'list-view.js')
+    );
+    const flowchartJsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'src', 'webviews', 'flowchart.js')
     );
 
     html = html.replace(/{{cspSource}}/g, webview.cspSource);
     html = html.replace(/{{cssUri}}/g, cssUri);
-    html = html.replace(/{{jsUri}}/g, jsUri);
+    html = html.replace(/{{mainJsUri}}/g, mainJsUri);
+    html = html.replace(/{{sidebarJsUri}}/g, sidebarJsUri);
+    html = html.replace(/{{listViewJsUri}}/g, listViewJsUri);
+    html = html.replace(/{{flowchartJsUri}}/g, flowchartJsUri);
 
     return html;
   }

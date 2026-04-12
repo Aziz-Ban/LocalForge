@@ -21,14 +21,12 @@
           <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
         </button>
       </div>
-      <div class="sidebar-list" id="project-list">
-        <!-- Dynamically rendered -->
-      </div>
+      <div class="sidebar-list" id="project-list"></div>
     </aside>
 
     <!-- Main Panel -->
     <div class="panel">
-      <!-- Panel Header -->
+      <!-- Header -->
       <header class="panel-header">
         <div class="panel-left">
           <button class="ib" id="btn-sidebar-open" title="Projects">
@@ -37,11 +35,20 @@
           <span class="panel-project-name" id="active-project-name">All Agents</span>
         </div>
         <div class="hdr-r">
+          <!-- View toggles -->
+          <button class="ib view-toggle active" id="btn-view-list" title="List View">
+            <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+          </button>
+          <button class="ib view-toggle" id="btn-view-flow" title="Flowchart View">
+            <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+          </button>
+          <div class="hdr-divider"></div>
+          <!-- Actions -->
           <button class="ib" id="btn-start-all" title="Start All">
-            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
           </button>
           <button class="ib" id="btn-stop-all" title="Stop All">
-            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z" /></svg>
+            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
           </button>
           <button class="ib" id="btn-refresh" title="Refresh">
             <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
@@ -51,13 +58,21 @@
 
       <!-- Content -->
       <main class="main">
-        <div id="agent-list"></div>
-        <div id="empty" class="empty">
-          <div class="empty-icon">
-            <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        <!-- List View -->
+        <div id="list-container" class="view-panel view-visible">
+          <div id="agent-list"></div>
+          <div id="empty" class="empty">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            </div>
+            <div class="empty-title">No agents yet</div>
+            <p>Create your first agent below</p>
           </div>
-          <div class="empty-title">No agents yet</div>
-          <p>Create your first agent below</p>
+        </div>
+
+        <!-- Flowchart View -->
+        <div id="flow-container" class="view-panel view-hidden">
+          <div id="flow-canvas" class="flow-canvas"></div>
         </div>
       </main>
     </div>
@@ -91,13 +106,13 @@
     <div id="confirm-modal" class="modal-overlay hidden">
       <div class="native-modal">
         <div class="modal-head">
-          <span id="confirm-title">Delete Project?</span>
+          <span id="confirm-title">Delete?</span>
           <button class="ib" id="btn-confirm-cancel" title="Cancel">
             <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
           </button>
         </div>
         <div class="modal-body">
-          <p id="confirm-message">This will remove the project and all its agents. This cannot be undone.</p>
+          <p id="confirm-message"></p>
           <div class="btn-row">
             <button class="btn btn-ghost" id="btn-confirm-no">Cancel</button>
             <button class="btn btn-danger" id="btn-confirm-yes">Delete</button>
@@ -106,6 +121,10 @@
       </div>
     </div>
 
-    <script src="{{jsUri}}"></script>
+    <!-- Scripts: order matters — main first (defines window.LF), then modules -->
+    <script src="{{mainJsUri}}"></script>
+    <script src="{{sidebarJsUri}}"></script>
+    <script src="{{listViewJsUri}}"></script>
+    <script src="{{flowchartJsUri}}"></script>
   </body>
 </html>

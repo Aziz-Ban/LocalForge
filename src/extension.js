@@ -6,6 +6,7 @@ const {
   destroyAll,
   isAgentRunning,
   getRunningAgents,
+  serverEvents
 } = require('./services/server');
 const { getAvailableModels } = require('./services/llmService');
 
@@ -159,6 +160,14 @@ function activate(context) {
   );
 
   const provider = new AgentViewProvider(context.extensionUri);
+
+  serverEvents.on('activityStart', (agentId) => {
+    provider.broadcast({ type: 'agentThinking', agentId });
+  });
+
+  serverEvents.on('activity', (agentId, preview) => {
+    provider.broadcast({ type: 'agentActivity', agentId, preview: preview || '' });
+  });
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(AgentViewProvider.viewType, provider, {
