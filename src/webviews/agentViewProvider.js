@@ -100,6 +100,19 @@ class AgentViewProvider {
           });
           break;
         }
+        case 'getConnections': {
+          const connections = await vscode.commands.executeCommand('smart-copilot.getConnections');
+          webviewView.webview.postMessage({ type: 'connections', value: connections });
+          break;
+        }
+        case 'saveConnections': {
+          await vscode.commands.executeCommand('smart-copilot.saveConnections', data.connections);
+          break;
+        }
+        case 'agentInput': {
+          await vscode.commands.executeCommand('smart-copilot.agentInput', data);
+          break;
+        }
       }
     });
   }

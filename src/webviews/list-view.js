@@ -124,47 +124,69 @@ window.ListView = (() => {
       } else {
         card.className = 'ag' + (isOn ? ' running' : '');
         card.id = 'ag-card-' + a.id;
-        card.innerHTML =
-          '<div class="ag-top">' +
-          '<div class="ag-dot ' +
-          (isOn ? 'on' : 'off') +
-          '"></div>' +
-          '<div class="ag-info">' +
-          '<div class="ag-name" title="' +
-          LF.esc(a.name) +
-          '">' +
-          LF.esc(a.name) +
-          '</div>' +
-          '<div class="ag-sub">Port ' +
-          a.port +
-          ' · ' +
-          LF.esc(a.modelId || 'default') +
-          '</div>' +
-          '</div>' +
-          '<div class="ag-actions">' +
-          (isOn
-            ? '<button class="ab st" data-stop="' +
-              a.id +
-              '">Stop</button><button class="ab" data-info="' +
-              a.id +
-              '">ℹ</button>'
-            : '<button class="ab go" data-start="' +
-              a.id +
-              '">Start</button><button class="ab" data-edit="' +
-              a.id +
-              '">✎</button><button class="ab del" data-del="' +
-              a.id +
-              '">✕</button>') +
-          '</div></div>' +
-          '<div class="ag-ep">' +
-          '<code>http://localhost:' +
-          a.port +
-          '/LocalForge/chat</code>' +
-          '<button class="cp" data-copy="http://localhost:' +
-          a.port +
-          '/LocalForge/chat">Copy</button>' +
-          '</div>';
+        
+        const model = a.modelId ? a.modelId.split('/').pop().split(':')[0] : '';
+
+        const prompt = a.systemPrompt || '';
+
+        card.innerHTML = `
+          <div class="ag-top">
+            <div class="ag-dot ${isOn ? 'on' : 'off'}"></div>
+            <div class="ag-info">
+              <div class="ag-name" title="${LF.esc(a.name)}">${LF.esc(a.name)}</div>
+              <div class="ag-tags">
+                ${model ? `<span class="ag-tag ag-tag-model">${LF.esc(model)}</span>` : ''}
+                <span class="ag-tag ag-tag-port">:${a.port}</span>
+                ${isOn ? '<span class="ag-tag ag-tag-live">\u25CF live</span>' : ''}
+              </div>
+            </div>
+            <div class="ag-actions">
+              ${isOn
+                ? `<button class="ab st" data-stop="${a.id}">Stop</button>`
+                : `<button class="ab go" data-start="${a.id}">Start</button>
+                   <button class="ab" data-edit="${a.id}">\u270E</button>
+                   <button class="ab del" data-del="${a.id}">\u2715</button>`
+              }
+              <button class="ab ag-info-btn" data-toggle-info="${a.id}" title="Info">\u2139</button>
+            </div>
+          </div>
+          <div class="ag-info-panel" id="ag-info-${a.id}">
+            <div class="ag-info-section">
+              <span class="ag-info-label">Endpoint</span>
+              <div class="ag-info-row">
+                <code>http://localhost:${a.port}/LocalForge/chat</code>
+                <button class="cp" data-copy="http://localhost:${a.port}/LocalForge/chat">Copy</button>
+              </div>
+            </div>
+            ${prompt ? `
+            <div class="ag-info-section">
+              <span class="ag-info-label">System Prompt</span>
+              <div class="ag-info-text">${LF.esc(prompt)}</div>
+            </div>` : `
+            <div class="ag-info-section">
+              <span class="ag-info-label">System Prompt</span>
+              <div class="ag-info-text ag-info-empty">No system prompt configured</div>
+            </div>`}
+            ${a.modelId ? `
+            <div class="ag-info-section">
+              <span class="ag-info-label">Model</span>
+              <div class="ag-info-text">${LF.esc(a.modelId)}</div>
+            </div>` : ''}
+            <div class="ag-info-section ag-test-section">
+              <span class="ag-info-label">Test Agent</span>
+              <div class="ag-info-row">
+                <code id="ag-test-result-${a.id}">Send a "hi" to test connection</code>
+                <button class="cp" data-test-send="${a.id}">Test</button>
+              </div>
+            </div>
+          </div>
+        `;
         el.appendChild(card);
+
+        // Restore thinking state
+        if (LF.thinkingAgents.has(a.id)) {
+          card.classList.add('thinking');
+        }
       }
     });
 
@@ -208,9 +230,12 @@ window.ListView = (() => {
       LF.vscode.postMessage({ type: 'stopAgent', agentId: t.dataset.stop });
     }
 
-    if (t.dataset.info) {
-      const a = LF.agents.find((x) => x.id === t.dataset.info);
-      if (a) LF.vscode.postMessage({ type: 'showApiInfo', agent: a });
+    if (t.dataset.toggleInfo) {
+      const panel = document.getElementById('ag-info-' + t.dataset.toggleInfo);
+      if (panel) {
+        panel.classList.toggle('open');
+        t.classList.toggle('active');
+      }
     }
 
     if (t.dataset.edit) {
@@ -270,6 +295,15 @@ window.ListView = (() => {
         return;
       }
 
+      // GLOBAL PORT CHECK
+      // Make sure the port is not already used by another agent
+      const isPortTaken = LF.agents.some((a) => a.id !== sid && a.port === port);
+      if (isPortTaken) {
+        LF.toast(`Port ${port} is already taken by another agent`, 'error');
+        portEl.focus();
+        return;
+      }
+
       const modelId = modelEl.value;
       const systemPrompt = chkEl && chkEl.checked && ctxEl ? ctxEl.value.trim() : '';
 
@@ -295,7 +329,39 @@ window.ListView = (() => {
       LF.persistAgents();
       render();
     }
+    
+    if (t.dataset.testSend) {
+      const agentId = t.dataset.testSend;
+      const resultDiv = document.getElementById('ag-test-result-' + agentId);
+      const a = LF.agents.find((x) => x.id === agentId);
+      
+      if (!a || !a.running) {
+         LF.toast('Please start the agent first to test it', 'error');
+         return;
+      }
+      
+      resultDiv.textContent = 'Running...';
+      t.disabled = true;
+
+      fetch(`http://localhost:${a.port}/LocalForge/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'hi' })
+      })
+      .then(res => res.json())
+      .then(data => {
+        resultDiv.textContent = data.result || data.error || JSON.stringify(data);
+      })
+      .catch(err => {
+        resultDiv.textContent = 'Error: ' + err.message;
+      })
+      .finally(() => {
+        t.disabled = false;
+      });
+    }
   });
+
+
 
   return { render };
 })();

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src {{cspSource}}; script-src {{cspSource}};"
+      content="default-src 'none'; style-src {{cspSource}}; script-src {{cspSource}}; connect-src http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="{{cssUri}}" rel="stylesheet" />
@@ -40,15 +40,12 @@
             <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
           </button>
           <button class="ib view-toggle" id="btn-view-flow" title="Flowchart View">
-            <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7zM7 9H4V5h3v4zm10 6h3v4h-3v-4zm0-10h3v4h-3V5z"/></svg>
           </button>
           <div class="hdr-divider"></div>
-          <!-- Actions -->
-          <button class="ib" id="btn-start-all" title="Start All">
+          <!-- Toggle play/stop -->
+          <button class="ib" id="btn-toggle-all" title="Start All">
             <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <button class="ib" id="btn-stop-all" title="Stop All">
-            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
           </button>
           <button class="ib" id="btn-refresh" title="Refresh">
             <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
@@ -71,8 +68,24 @@
         </div>
 
         <!-- Flowchart View -->
-        <div id="flow-container" class="view-panel view-hidden">
+        <div id="flow-container" class="view-panel view-hidden" style="position: relative;">
           <div id="flow-canvas" class="flow-canvas"></div>
+          <!-- Toolbar (moved outside canvas to avoid z-index GPU layer bugs) -->
+          <div class="fc-toolbar">
+            <button class="fc-tool-btn" id="fc-btn-center" title="Reset view">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+            </button>
+            <div class="fc-tool-sep"></div>
+            <button class="fc-tool-btn" id="fc-btn-zin" title="Zoom in">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <span class="fc-tool-zoom" id="fc-zoom-indicator">100%</span>
+            <button class="fc-tool-btn" id="fc-btn-zout" title="Zoom out">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <!-- Hint (moved outside canvas too) -->
+          <div class="fc-hint">Scroll to zoom &middot; Drag background to pan &middot; Drag nodes to move &middot; Drag &rarr; to connect</div>
         </div>
       </main>
     </div>
@@ -84,14 +97,14 @@
     <div id="project-modal" class="modal-overlay hidden">
       <div class="native-modal">
         <div class="modal-head">
-          <span>New Project</span>
+          <span>New Folder</span>
           <button class="ib" id="btn-proj-cancel" title="Cancel">
             <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
           </button>
         </div>
         <div class="modal-body">
           <div class="field">
-            <label>Project Name</label>
+            <label>Folder Name</label>
             <input type="text" id="f-proj-name" placeholder="e.g. My Next.js Setup" autocomplete="off" />
           </div>
           <div class="btn-row">

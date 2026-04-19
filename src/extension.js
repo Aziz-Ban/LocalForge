@@ -19,6 +19,7 @@ function activate(context) {
 
   let agents = context.globalState.get(AGENTS_KEY, []);
   let projects = context.globalState.get(PROJECTS_KEY, []);
+  let connections = context.globalState.get('localforge.connections', []);
 
   function saveAgents() {
     context.globalState.update(AGENTS_KEY, agents);
@@ -41,6 +42,35 @@ function activate(context) {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.getConnections', () => connections)
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.saveConnections', (updatedConnections) => {
+      connections = updatedConnections;
+      context.globalState.update('localforge.connections', connections);
+      return { success: true };
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('smart-copilot.agentInput', async (data) => {
+      const targetAgent = agents.find((a) => a.id === data.agentId);
+      if (targetAgent) {
+        try {
+          await fetch(`http://localhost:${targetAgent.port}/input`, {
+            method: 'POST',
+            body: JSON.stringify({ input: data.input, from: data.sourceAgentId }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } catch (e) {
+          console.error('Failed to route agent output:', e);
+        }
+      }
+    })
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand('smart-copilot.getCurrentWorkspace', () => {
       const folders = vscode.workspace.workspaceFolders;
       if (folders && folders.length > 0) {
@@ -58,18 +88,10 @@ function activate(context) {
     outputChannel.appendLine('--------------------------------------------------');
     outputChannel.appendLine('Request Body (JSON):');
     const exampleBody = { prompt: 'Your prompt here...' };
-    if (agent.systemPrompt) {
-      exampleBody.systemPrompt = agent.systemPrompt;
-    }
     outputChannel.appendLine(JSON.stringify(exampleBody, null, 2));
     outputChannel.appendLine('--------------------------------------------------');
     outputChannel.appendLine('Expected Response (JSON):');
     outputChannel.appendLine(JSON.stringify({ result: 'The AI response text.' }, null, 2));
-    if (agent.systemPrompt) {
-      outputChannel.appendLine('--------------------------------------------------');
-      outputChannel.appendLine('Default System Prompt (Context):');
-      outputChannel.appendLine(agent.systemPrompt);
-    }
     outputChannel.appendLine('--------------------------------------------------');
     outputChannel.show();
   };
