@@ -61,7 +61,7 @@ function activate(context) {
           await fetch(`http://localhost:${targetAgent.port}/LocalForge/chat`, {
             method: 'POST',
             body: JSON.stringify({ prompt: data.input }),
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
           });
         } catch (e) {
           console.error('Failed to route agent output:', e);
@@ -193,7 +193,7 @@ function activate(context) {
       ts: Date.now(),
       input: inputText ? inputText.substring(0, 500) : '',
       output: null,
-      status: 'thinking'
+      status: 'thinking',
     });
     // Keep only last N entries
     if (agentLogs[agentId].length > MAX_LOGS) agentLogs[agentId].shift();
@@ -233,9 +233,9 @@ function activate(context) {
       return;
     }
 
-    const downstream = connections.filter(c => c.from === fromAgentId);
+    const downstream = connections.filter((c) => c.from === fromAgentId);
     for (const conn of downstream) {
-      const targetAgent = agents.find(a => a.id === conn.to);
+      const targetAgent = agents.find((a) => a.id === conn.to);
       if (!targetAgent || !isAgentRunning(targetAgent.id)) continue;
 
       // Mark the target as being in an active chain to detect cycles
@@ -245,16 +245,16 @@ function activate(context) {
         fetch(`http://localhost:${targetAgent.port}/LocalForge/chat`, {
           method: 'POST',
           body: JSON.stringify({ prompt: fullResponse }),
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
         })
-        .then(() => {
-          // Clean up after the downstream agent finishes
-          setTimeout(() => activeChains.delete(fromAgentId), 1000);
-        })
-        .catch(e => {
-          activeChains.delete(fromAgentId);
-          console.error(`Chain routing to ${targetAgent.name} failed:`, e);
-        });
+          .then(() => {
+            // Clean up after the downstream agent finishes
+            setTimeout(() => activeChains.delete(fromAgentId), 1000);
+          })
+          .catch((e) => {
+            activeChains.delete(fromAgentId);
+            console.error(`Chain routing to ${targetAgent.name} failed:`, e);
+          });
       } catch (e) {
         activeChains.delete(fromAgentId);
         console.error(`Chain routing to ${targetAgent.name} failed:`, e);

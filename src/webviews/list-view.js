@@ -124,7 +124,7 @@ window.ListView = (() => {
       } else {
         card.className = 'ag' + (isOn ? ' running' : '');
         card.id = 'ag-card-' + a.id;
-        
+
         const model = a.modelId ? a.modelId.split('/').pop().split(':')[0] : '';
 
         const prompt = a.systemPrompt || '';
@@ -141,9 +141,10 @@ window.ListView = (() => {
               </div>
             </div>
             <div class="ag-actions">
-              ${isOn
-                ? `<button class="ab st" data-stop="${a.id}">Stop</button>`
-                : `<button class="ab go" data-start="${a.id}">Start</button>
+              ${
+                isOn
+                  ? `<button class="ab st" data-stop="${a.id}">Stop</button>`
+                  : `<button class="ab go" data-start="${a.id}">Start</button>
                    <button class="ab" data-edit="${a.id}">\u270E</button>
                    <button class="ab del" data-del="${a.id}">\u2715</button>`
               }
@@ -158,20 +159,28 @@ window.ListView = (() => {
                 <button class="cp" data-copy="http://localhost:${a.port}/LocalForge/chat">Copy</button>
               </div>
             </div>
-            ${prompt ? `
+            ${
+              prompt
+                ? `
             <div class="ag-info-section">
               <span class="ag-info-label">System Prompt</span>
               <div class="ag-info-text">${LF.esc(prompt)}</div>
-            </div>` : `
+            </div>`
+                : `
             <div class="ag-info-section">
               <span class="ag-info-label">System Prompt</span>
               <div class="ag-info-text ag-info-empty">No system prompt configured</div>
-            </div>`}
-            ${a.modelId ? `
+            </div>`
+            }
+            ${
+              a.modelId
+                ? `
             <div class="ag-info-section">
               <span class="ag-info-label">Model</span>
               <div class="ag-info-text">${LF.esc(a.modelId)}</div>
-            </div>` : ''}
+            </div>`
+                : ''
+            }
             <div class="ag-info-section ag-test-section">
               <span class="ag-info-label">Test Agent</span>
               <div class="ag-info-row">
@@ -333,56 +342,70 @@ window.ListView = (() => {
       LF.persistAgents();
       render();
     }
-    
+
     if (t.dataset.testSend) {
       const agentId = t.dataset.testSend;
       const resultDiv = document.getElementById('ag-test-result-' + agentId);
       const a = LF.agents.find((x) => x.id === agentId);
-      
+
       if (!a || !a.running) {
-         LF.toast('Please start the agent first to test it', 'error');
-         return;
+        LF.toast('Please start the agent first to test it', 'error');
+        return;
       }
-      
+
       resultDiv.textContent = 'Running...';
       t.disabled = true;
 
       fetch(`http://localhost:${a.port}/LocalForge/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'hi' })
+        body: JSON.stringify({ prompt: 'hi' }),
       })
-      .then(res => res.json())
-      .then(data => {
-        resultDiv.textContent = data.result || data.error || JSON.stringify(data);
-      })
-      .catch(err => {
-        resultDiv.textContent = 'Error: ' + err.message;
-      })
-      .finally(() => {
-        t.disabled = false;
-      });
+        .then((res) => res.json())
+        .then((data) => {
+          resultDiv.textContent = data.result || data.error || JSON.stringify(data);
+        })
+        .catch((err) => {
+          resultDiv.textContent = 'Error: ' + err.message;
+        })
+        .finally(() => {
+          t.disabled = false;
+        });
     }
   });
 
-
   function renderListLogEntries(logs) {
     if (!logs || !logs.length) return '<div class="ag-log-empty">No activity yet</div>';
-    return logs.slice(-10).map(entry => {
-      const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const inputSnip = entry.input ? (entry.input.length > 80 ? entry.input.substring(0, 80) + '\u2026' : entry.input) : '';
-      const outputSnip = entry.output ? (entry.output.length > 80 ? entry.output.substring(0, 80) + '\u2026' : entry.output) : '';
-      let html = '<div class="ag-log-entry">';
-      html += `<span class="ag-log-time">${time}</span>`;
-      html += `<span class="ag-log-in">\u2192 ${LF.esc(inputSnip)}</span>`;
-      if (entry.status === 'thinking') {
-        html += '<span class="ag-log-thinking">thinking\u2026</span>';
-      } else if (outputSnip) {
-        html += `<span class="ag-log-out">\u2190 ${LF.esc(outputSnip)}</span>`;
-      }
-      html += '</div>';
-      return html;
-    }).join('');
+    return logs
+      .slice(-10)
+      .map((entry) => {
+        const time = new Date(entry.ts).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        const inputSnip = entry.input
+          ? entry.input.length > 80
+            ? entry.input.substring(0, 80) + '\u2026'
+            : entry.input
+          : '';
+        const outputSnip = entry.output
+          ? entry.output.length > 80
+            ? entry.output.substring(0, 80) + '\u2026'
+            : entry.output
+          : '';
+        let html = '<div class="ag-log-entry">';
+        html += `<span class="ag-log-time">${time}</span>`;
+        html += `<span class="ag-log-in">\u2192 ${LF.esc(inputSnip)}</span>`;
+        if (entry.status === 'thinking') {
+          html += '<span class="ag-log-thinking">thinking\u2026</span>';
+        } else if (outputSnip) {
+          html += `<span class="ag-log-out">\u2190 ${LF.esc(outputSnip)}</span>`;
+        }
+        html += '</div>';
+        return html;
+      })
+      .join('');
   }
 
   function updateLogPanel(agentId) {

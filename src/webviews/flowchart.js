@@ -23,22 +23,37 @@ window.FlowChart = (() => {
   let nodePositions = {};
 
   // Pan & zoom
-  let panX = 0, panY = 0, zoom = 1;
-  let isPanning = false, panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
-  
+  let panX = 0,
+    panY = 0,
+    zoom = 1;
+  let isPanning = false,
+    panStartX = 0,
+    panStartY = 0,
+    panStartPanX = 0,
+    panStartPanY = 0;
+
   // Auto-fit tracking
   let isAutoCentered = true;
   let lastCenteredProject = null;
 
   // Node dragging
   let draggingNode = null;
-  let dragNodeStartX = 0, dragNodeStartY = 0, dragNodeOrigX = 0, dragNodeOrigY = 0;
+  let dragNodeStartX = 0,
+    dragNodeStartY = 0,
+    dragNodeOrigX = 0,
+    dragNodeOrigY = 0;
 
   // ── DOM ───────────────────────────────────────────────────────
-  function getCanvas() { return document.getElementById('flow-canvas'); }
-  function getWorld()  { return document.getElementById('fc-world'); }
+  function getCanvas() {
+    return document.getElementById('flow-canvas');
+  }
+  function getWorld() {
+    return document.getElementById('fc-world');
+  }
 
-  function ns(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+  function ns(tag) {
+    return document.createElementNS('http://www.w3.org/2000/svg', tag);
+  }
 
   function applyTransform() {
     const w = getWorld();
@@ -64,8 +79,8 @@ window.FlowChart = (() => {
 
   function visibleAgents() {
     return LF.activeProjectId === LF.GLOBAL_ID
-      ? LF.agents.filter(a => !a.projectId || a.projectId === LF.GLOBAL_ID)
-      : LF.agents.filter(a => a.projectId === LF.activeProjectId);
+      ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
+      : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
   }
 
   function screenToWorld(cx, cy) {
@@ -82,7 +97,8 @@ window.FlowChart = (() => {
     svg.id = 'fc-svg';
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
-    svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:0;';
+    svg.style.cssText =
+      'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:0;';
 
     const defs = ns('defs');
 
@@ -127,14 +143,14 @@ window.FlowChart = (() => {
   function addConnection(fromId, toId) {
     if (fromId === toId) return;
     LF.connections = LF.connections || [];
-    if (LF.connections.some(c => c.from === fromId && c.to === toId)) return;
+    if (LF.connections.some((c) => c.from === fromId && c.to === toId)) return;
     LF.connections.push({ from: fromId, to: toId });
     LF.vscode.postMessage({ type: 'saveConnections', connections: LF.connections });
     render();
   }
 
   function removeConnection(fromId, toId) {
-    LF.connections = (LF.connections || []).filter(c => !(c.from === fromId && c.to === toId));
+    LF.connections = (LF.connections || []).filter((c) => !(c.from === fromId && c.to === toId));
     LF.vscode.postMessage({ type: 'saveConnections', connections: LF.connections });
     render();
   }
@@ -156,7 +172,8 @@ window.FlowChart = (() => {
     const agents = visibleAgents();
 
     if (!agents.length) {
-      canvas.innerHTML = '<div class="flow-empty">No agents in this project.<br>Switch to list view to add one.</div>';
+      canvas.innerHTML =
+        '<div class="flow-empty">No agents in this project.<br>Switch to list view to add one.</div>';
       return;
     }
 
@@ -168,7 +185,8 @@ window.FlowChart = (() => {
     canvas.appendChild(world);
 
     // Compute world size based on node positions
-    let maxX = 600, maxY = 400;
+    let maxX = 600,
+      maxY = 400;
     agents.forEach((a, i) => {
       const p = getNodePos(a.id, i);
       if (p.x + NODE_W + 40 > maxX) maxX = p.x + NODE_W + 40;
@@ -181,28 +199,47 @@ window.FlowChart = (() => {
     const svg = buildSVG();
     world.appendChild(svg);
 
-    // Detect circular loops (A→B and B→A)
+    // Detect cycles of any length (A→B→C→A etc.) using DFS
     const connections = LF.connections || [];
     const loopNodes = new Set();
-    connections.forEach(c1 => {
-      connections.forEach(c2 => {
-        if (c1.from === c2.to && c1.to === c2.from) {
-          loopNodes.add(c1.from);
-          loopNodes.add(c1.to);
+    {
+      // Build adjacency list
+      const adj = {};
+      connections.forEach((c) => {
+        if (!adj[c.from]) adj[c.from] = [];
+        adj[c.from].push(c.to);
+      });
+      // DFS from each node to find cycles
+      const allIds = [...new Set(connections.flatMap((c) => [c.from, c.to]))];
+      allIds.forEach((startId) => {
+        const visited = new Set();
+        const stack = [[startId, [startId]]];
+        while (stack.length) {
+          const [current, path] = stack.pop();
+          const neighbors = adj[current] || [];
+          for (const next of neighbors) {
+            if (next === startId && path.length > 1) {
+              // Found a cycle — mark all nodes in the path
+              path.forEach((id) => loopNodes.add(id));
+            } else if (!visited.has(next)) {
+              visited.add(next);
+              stack.push([next, [...path, next]]);
+            }
+          }
         }
       });
-    });
+    }
 
     // Save any open chat input values before re-render
-    agents.forEach(a => {
+    agents.forEach((a) => {
       const inp = document.getElementById('fc-chatinput-' + a.id);
       if (inp && inp.value) savedChatInputs[a.id] = inp.value;
     });
 
     // Draw connections
     connections.forEach(({ from, to }) => {
-      const fi = agents.findIndex(a => a.id === from);
-      const ti = agents.findIndex(a => a.id === to);
+      const fi = agents.findIndex((a) => a.id === from);
+      const ti = agents.findIndex((a) => a.id === to);
       if (fi < 0 || ti < 0) return;
       const s = nodeCenter(from, fi);
       const e = nodeCenter(to, ti);
@@ -272,9 +309,10 @@ window.FlowChart = (() => {
           <div class="fc-node-title">${LF.esc(a.name)}</div>
           ${inLoop ? '<span class="fc-loop-badge" title="Loop detected: agents feed into each other">\u26A0 Loop</span>' : ''}
           <div class="fc-node-actions">
-            ${on
-              ? `<button class="fc-btn fc-stop" data-stop="${a.id}" title="Stop">\u25A0</button>`
-              : `<button class="fc-btn fc-start" data-start="${a.id}" title="Start">\u25B6</button>`
+            ${
+              on
+                ? `<button class="fc-btn fc-stop" data-stop="${a.id}" title="Stop">\u25A0</button>`
+                : `<button class="fc-btn fc-start" data-start="${a.id}" title="Start">\u25B6</button>`
             }
             <button class="fc-btn fc-link" data-connect="${a.id}" title="Drag to connect">\u2192</button>
             <button class="fc-btn fc-chat-btn${isOpen ? ' fc-chat-active' : ''}" data-chat="${a.id}" title="Chat / Test">\u2709</button>
@@ -361,31 +399,28 @@ window.FlowChart = (() => {
 
     // Update lines instantly
     const agents = visibleAgents();
-    const fi = agents.findIndex(a => a.id === aid);
-    if (fi < 0) return;
-    const center = nodeCenter(aid, fi);
 
     const svg = document.getElementById('fc-svg');
     if (!svg) return;
 
     (LF.connections || []).forEach((c) => {
       if (c.from === aid || c.to === aid) {
-        const fi2 = agents.findIndex(a => a.id === c.from);
-        const ti2 = agents.findIndex(a => a.id === c.to);
+        const fi2 = agents.findIndex((a) => a.id === c.from);
+        const ti2 = agents.findIndex((a) => a.id === c.to);
         if (fi2 < 0 || ti2 < 0) return;
         const sc = nodeCenter(c.from, fi2);
         const ec = nodeCenter(c.to, ti2);
         const p = curvePath(sc.cx, sc.cy, ec.cx, ec.cy);
         const connId = c.from + '__' + c.to;
-        svg.querySelectorAll(`[data-conn-id="${connId}"]`).forEach(el => el.setAttribute('d', p));
+        svg.querySelectorAll(`[data-conn-id="${connId}"]`).forEach((el) => el.setAttribute('d', p));
       }
     });
 
     const w = getWorld();
     let maxX = parseFloat(w.style.width);
     let maxY = parseFloat(w.style.height);
-    if (nx + NODE_W + 40 > maxX) w.style.width = (nx + NODE_W + 40) + 'px';
-    if (ny + NODE_H + 60 > maxY) w.style.height = (ny + NODE_H + 60) + 'px';
+    if (nx + NODE_W + 40 > maxX) w.style.width = nx + NODE_W + 40 + 'px';
+    if (ny + NODE_H + 60 > maxY) w.style.height = ny + NODE_H + 60 + 'px';
   }
 
   function onNodeDragEnd(e) {
@@ -404,8 +439,10 @@ window.FlowChart = (() => {
     if (e.target.closest('button') || e.target.closest('.fc-node')) return;
     if (e.button !== 0 && e.button !== 1) return;
     isPanning = true;
-    panStartX = e.clientX; panStartY = e.clientY;
-    panStartPanX = panX; panStartPanY = panY;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panStartPanX = panX;
+    panStartPanY = panY;
     getCanvas().classList.add('fc-panning');
     document.addEventListener('mousemove', onPanMove, true);
     document.addEventListener('mouseup', onPanEnd, true);
@@ -432,7 +469,8 @@ window.FlowChart = (() => {
     e.preventDefault();
     isAutoCentered = false;
     const rect = getCanvas().getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const mx = e.clientX - rect.left,
+      my = e.clientY - rect.top;
     const old = zoom;
     zoom = Math.min(3, Math.max(0.25, zoom + (e.deltaY > 0 ? -0.08 : 0.08)));
     panX = mx - (mx - panX) * (zoom / old);
@@ -447,11 +485,16 @@ window.FlowChart = (() => {
     const canvas = getCanvas();
     if (!canvas) return;
     const agents = visibleAgents();
-    
+
     if (!agents.length) {
-      panX = 0; panY = 0; zoom = 1;
+      panX = 0;
+      panY = 0;
+      zoom = 1;
     } else {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
       agents.forEach((a, i) => {
         const p = getNodePos(a.id, i);
         if (p.x < minX) minX = p.x;
@@ -459,21 +502,21 @@ window.FlowChart = (() => {
         if (p.x + NODE_W > maxX) maxX = p.x + NODE_W;
         if (p.y + NODE_H > maxY) maxY = p.y + NODE_H;
       });
-      
+
       const graphW = maxX - minX;
       const graphH = maxY - minY;
-      
+
       const cw = canvas.clientWidth || window.innerWidth;
       const ch = canvas.clientHeight || window.innerHeight;
-      
+
       const paddingX = 60;
       const paddingY = 60;
-      
+
       const scaleX = (cw - paddingX * 2) / Math.max(1, graphW);
       const scaleY = (ch - paddingY * 2) / Math.max(1, graphH);
-      
+
       zoom = Math.max(0.25, Math.min(1, scaleX, scaleY));
-      
+
       panX = (cw - graphW * zoom) / 2 - minX * zoom;
       panY = 60 - minY * zoom; // Top-align, 60px from the top
     }
@@ -491,7 +534,7 @@ window.FlowChart = (() => {
     e.stopPropagation();
     connectingFrom = btn.dataset.connect;
 
-    document.querySelectorAll('.fc-node').forEach(n => {
+    document.querySelectorAll('.fc-node').forEach((n) => {
       n.classList.add(n.dataset.agentId === connectingFrom ? 'fc-source' : 'fc-target');
     });
 
@@ -514,7 +557,7 @@ window.FlowChart = (() => {
     if (!connectingFrom || !dragLine) return;
     const w = screenToWorld(e.clientX, e.clientY);
     const agents = visibleAgents();
-    const fi = agents.findIndex(a => a.id === connectingFrom);
+    const fi = agents.findIndex((a) => a.id === connectingFrom);
     if (fi < 0) return;
     const s = nodeCenter(connectingFrom, fi);
     dragLine.setAttribute('d', curvePath(s.cx, s.cy, w.x, w.y));
@@ -525,7 +568,10 @@ window.FlowChart = (() => {
     document.removeEventListener('mouseup', onConnectEnd, true);
     if (!connectingFrom) return;
 
-    if (dragLine) { dragLine.remove(); dragLine = null; }
+    if (dragLine) {
+      dragLine.remove();
+      dragLine = null;
+    }
 
     const targetNode = e.target.closest('.fc-node');
     if (targetNode) {
@@ -534,17 +580,27 @@ window.FlowChart = (() => {
     }
 
     connectingFrom = null;
-    document.querySelectorAll('.fc-source, .fc-target').forEach(n => n.classList.remove('fc-source', 'fc-target'));
+    document
+      .querySelectorAll('.fc-source, .fc-target')
+      .forEach((n) => n.classList.remove('fc-source', 'fc-target'));
   }
 
   function onClick(e) {
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.dataset.start) {
-      const a = LF.agents.find(x => x.id === btn.dataset.start);
-      if (a) { btn.textContent = '\u2026'; btn.disabled = true; LF.vscode.postMessage({ type: 'startAgent', agent: a }); }
+      const a = LF.agents.find((x) => x.id === btn.dataset.start);
+      if (a) {
+        btn.textContent = '\u2026';
+        btn.disabled = true;
+        LF.vscode.postMessage({ type: 'startAgent', agent: a });
+      }
     }
-    if (btn.dataset.stop) { btn.textContent = '\u2026'; btn.disabled = true; LF.vscode.postMessage({ type: 'stopAgent', agentId: btn.dataset.stop }); }
+    if (btn.dataset.stop) {
+      btn.textContent = '\u2026';
+      btn.disabled = true;
+      LF.vscode.postMessage({ type: 'stopAgent', agentId: btn.dataset.stop });
+    }
     if (btn.dataset.chat) {
       toggleChatPanel(btn.dataset.chat);
     }
@@ -581,7 +637,10 @@ window.FlowChart = (() => {
       if (chatBtn) chatBtn.classList.add('fc-chat-active');
       bindChatInput(agentId);
       const logEl = document.getElementById('fc-chatlog-' + agentId);
-      if (logEl) setTimeout(() => { logEl.scrollTop = logEl.scrollHeight; }, 50);
+      if (logEl)
+        setTimeout(() => {
+          logEl.scrollTop = logEl.scrollHeight;
+        }, 50);
       // Push nodes down
       shiftNodesBelow(agentId, threshold, CHAT_EXPAND_H);
     }
@@ -589,7 +648,7 @@ window.FlowChart = (() => {
 
   function shiftNodesBelow(excludeId, thresholdY, delta) {
     const agents = visibleAgents();
-    agents.forEach(a => {
+    agents.forEach((a) => {
       if (a.id === excludeId) return;
       const n = document.getElementById('fc-node-' + a.id);
       if (!n) return;
@@ -608,15 +667,15 @@ window.FlowChart = (() => {
     const svg = document.getElementById('fc-svg');
     if (!svg) return;
     const agents = visibleAgents();
-    (LF.connections || []).forEach(c => {
-      const fi = agents.findIndex(a => a.id === c.from);
-      const ti = agents.findIndex(a => a.id === c.to);
+    (LF.connections || []).forEach((c) => {
+      const fi = agents.findIndex((a) => a.id === c.from);
+      const ti = agents.findIndex((a) => a.id === c.to);
       if (fi < 0 || ti < 0) return;
       const sc = nodeCenter(c.from, fi);
       const ec = nodeCenter(c.to, ti);
       const p = curvePath(sc.cx, sc.cy, ec.cx, ec.cy);
       const connId = c.from + '__' + c.to;
-      svg.querySelectorAll(`[data-conn-id="${connId}"]`).forEach(el => el.setAttribute('d', p));
+      svg.querySelectorAll(`[data-conn-id="${connId}"]`).forEach((el) => el.setAttribute('d', p));
     });
   }
 
@@ -637,21 +696,35 @@ window.FlowChart = (() => {
 
   function renderLogEntries(logs) {
     if (!logs || !logs.length) return '<div class="fc-chatlog-empty">No activity yet</div>';
-    return logs.map(entry => {
-      const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const inputSnip = entry.input ? (entry.input.length > 120 ? entry.input.substring(0, 120) + '\u2026' : entry.input) : '';
-      const outputSnip = entry.output ? (entry.output.length > 120 ? entry.output.substring(0, 120) + '\u2026' : entry.output) : '';
-      let html = `<div class="fc-log-entry">`;
-      html += `<div class="fc-log-time">${time}</div>`;
-      html += `<div class="fc-log-in">\u2192 ${LF.esc(inputSnip)}</div>`;
-      if (entry.status === 'thinking') {
-        html += `<div class="fc-log-thinking">thinking\u2026</div>`;
-      } else if (outputSnip) {
-        html += `<div class="fc-log-out">\u2190 ${LF.esc(outputSnip)}</div>`;
-      }
-      html += '</div>';
-      return html;
-    }).join('');
+    return logs
+      .map((entry) => {
+        const time = new Date(entry.ts).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        const inputSnip = entry.input
+          ? entry.input.length > 120
+            ? entry.input.substring(0, 120) + '\u2026'
+            : entry.input
+          : '';
+        const outputSnip = entry.output
+          ? entry.output.length > 120
+            ? entry.output.substring(0, 120) + '\u2026'
+            : entry.output
+          : '';
+        let html = `<div class="fc-log-entry">`;
+        html += `<div class="fc-log-time">${time}</div>`;
+        html += `<div class="fc-log-in">\u2192 ${LF.esc(inputSnip)}</div>`;
+        if (entry.status === 'thinking') {
+          html += `<div class="fc-log-thinking">thinking\u2026</div>`;
+        } else if (outputSnip) {
+          html += `<div class="fc-log-out">\u2190 ${LF.esc(outputSnip)}</div>`;
+        }
+        html += '</div>';
+        return html;
+      })
+      .join('');
   }
 
   function updateLogPanel(agentId) {
@@ -668,7 +741,7 @@ window.FlowChart = (() => {
     const message = input.value.trim();
     input.value = '';
 
-    const a = LF.agents.find(x => x.id === agentId);
+    const a = LF.agents.find((x) => x.id === agentId);
     if (!a || !a.running) {
       LF.toast('Start the agent first', 'error');
       return;
@@ -677,15 +750,15 @@ window.FlowChart = (() => {
     fetch(`http://localhost:${a.port}/LocalForge/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: message })
+      body: JSON.stringify({ prompt: message }),
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.error) LF.toast('Error: ' + data.error, 'error');
-    })
-    .catch(err => {
-      LF.toast('Error: ' + err.message, 'error');
-    });
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) LF.toast('Error: ' + data.error, 'error');
+      })
+      .catch((err) => {
+        LF.toast('Error: ' + err.message, 'error');
+      });
   }
 
   // ── Bind events ───────────────────────────────────────────────
@@ -698,21 +771,36 @@ window.FlowChart = (() => {
     canvas.addEventListener('wheel', onWheel, { passive: false });
   }
 
-  document.addEventListener('keydown', e => {
+  document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && connectingFrom) {
-      if (dragLine) { dragLine.remove(); dragLine = null; }
+      if (dragLine) {
+        dragLine.remove();
+        dragLine = null;
+      }
       connectingFrom = null;
-      document.querySelectorAll('.fc-source, .fc-target').forEach(n => n.classList.remove('fc-source', 'fc-target'));
+      document
+        .querySelectorAll('.fc-source, .fc-target')
+        .forEach((n) => n.classList.remove('fc-source', 'fc-target'));
     }
-    if (e.key === '0' && e.ctrlKey) { e.preventDefault(); resetView(); }
+    if (e.key === '0' && e.ctrlKey) {
+      e.preventDefault();
+      resetView();
+    }
   });
 
   // ── Output routing ────────────────────────────────────────────
   function routeOutput(fromAgentId, output) {
-    (LF.connections || []).filter(c => c.from === fromAgentId).forEach(c => {
-      LF.vscode.postMessage({ type: 'agentInput', agentId: c.to, input: output, sourceAgentId: fromAgentId });
-      triggerActivity(c.to, output);
-    });
+    (LF.connections || [])
+      .filter((c) => c.from === fromAgentId)
+      .forEach((c) => {
+        LF.vscode.postMessage({
+          type: 'agentInput',
+          agentId: c.to,
+          input: output,
+          sourceAgentId: fromAgentId,
+        });
+        triggerActivity(c.to, output);
+      });
   }
 
   // ── Public API ────────────────────────────────────────────────
@@ -750,24 +838,26 @@ window.FlowChart = (() => {
     const centerBtn = document.getElementById('fc-btn-center');
     const zinBtn = document.getElementById('fc-btn-zin');
     const zoutBtn = document.getElementById('fc-btn-zout');
-    
+
     if (centerBtn) centerBtn.addEventListener('click', resetView);
-    
-    if (zinBtn) zinBtn.addEventListener('click', () => {
-      isAutoCentered = false;
-      zoom = Math.min(3, zoom + 0.15);
-      applyTransform();
-      const ind = document.getElementById('fc-zoom-indicator');
-      if (ind) ind.textContent = Math.round(zoom * 100) + '%';
-    });
-    
-    if (zoutBtn) zoutBtn.addEventListener('click', () => {
-      isAutoCentered = false;
-      zoom = Math.max(0.25, zoom - 0.15);
-      applyTransform();
-      const ind = document.getElementById('fc-zoom-indicator');
-      if (ind) ind.textContent = Math.round(zoom * 100) + '%';
-    });
+
+    if (zinBtn)
+      zinBtn.addEventListener('click', () => {
+        isAutoCentered = false;
+        zoom = Math.min(3, zoom + 0.15);
+        applyTransform();
+        const ind = document.getElementById('fc-zoom-indicator');
+        if (ind) ind.textContent = Math.round(zoom * 100) + '%';
+      });
+
+    if (zoutBtn)
+      zoutBtn.addEventListener('click', () => {
+        isAutoCentered = false;
+        zoom = Math.max(0.25, zoom - 0.15);
+        applyTransform();
+        const ind = document.getElementById('fc-zoom-indicator');
+        if (ind) ind.textContent = Math.round(zoom * 100) + '%';
+      });
 
     window.addEventListener('resize', () => {
       if (LF.activeView === 'flowchart') {

@@ -15,7 +15,7 @@ window.LF = {
   projects: [],
   connections: [],
   thinkingAgents: new Set(),
-  agentLogs: {},    // agentId → [{ ts, input, output, status }]
+  agentLogs: {}, // agentId → [{ ts, input, output, status }]
   currentWorkspace: null,
   GLOBAL_ID: '__global__',
   activeProjectId: '__global__',
@@ -50,11 +50,11 @@ window.LF = {
     const list = isGlobal
       ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
       : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
-    
+
     // Check if ALL agents in list are running
-    const runningCount = list.filter(a => a.running).length;
+    const runningCount = list.filter((a) => a.running).length;
     const allRunning = list.length > 0 && runningCount === list.length;
-    
+
     if (allRunning) {
       btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>';
       btn.title = 'Stop All';
@@ -170,10 +170,10 @@ document.getElementById('btn-toggle-all').addEventListener('click', () => {
   const list = isGlobal
     ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
     : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
-  
+
   if (!list.length) return LF.toast('No agents in this folder', '');
 
-  const runningCount = list.filter(a => a.running).length;
+  const runningCount = list.filter((a) => a.running).length;
   const shouldStart = runningCount === 0 || runningCount < list.length;
 
   if (shouldStart) {

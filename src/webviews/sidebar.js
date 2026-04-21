@@ -37,32 +37,43 @@ window.Sidebar = (() => {
 
   // Check if any agent in a project is running
   function isProjectRunning(projectId) {
-    const agents = projectId === LF.GLOBAL_ID
-      ? LF.agents.filter(a => !a.projectId || a.projectId === LF.GLOBAL_ID)
-      : LF.agents.filter(a => a.projectId === projectId);
-    return agents.some(a => a.running);
+    const agents =
+      projectId === LF.GLOBAL_ID
+        ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
+        : LF.agents.filter((a) => a.projectId === projectId);
+    return agents.some((a) => a.running);
   }
 
   // Start all agents in a project
   function startProject(projectId) {
-    const agents = projectId === LF.GLOBAL_ID
-      ? LF.agents.filter(a => (!a.projectId || a.projectId === LF.GLOBAL_ID) && !a.running)
-      : LF.agents.filter(a => a.projectId === projectId && !a.running);
-    agents.forEach(a => {
+    const agents =
+      projectId === LF.GLOBAL_ID
+        ? LF.agents.filter((a) => (!a.projectId || a.projectId === LF.GLOBAL_ID) && !a.running)
+        : LF.agents.filter((a) => a.projectId === projectId && !a.running);
+    agents.forEach((a) => {
       LF.vscode.postMessage({ type: 'startAgent', agent: a });
     });
-    if (agents.length) LF.toast('Starting ' + agents.length + ' agent' + (agents.length > 1 ? 's' : '') + '\u2026', 'success');
+    if (agents.length)
+      LF.toast(
+        'Starting ' + agents.length + ' agent' + (agents.length > 1 ? 's' : '') + '\u2026',
+        'success'
+      );
   }
 
   // Stop all agents in a project
   function stopProject(projectId) {
-    const agents = projectId === LF.GLOBAL_ID
-      ? LF.agents.filter(a => (!a.projectId || a.projectId === LF.GLOBAL_ID) && a.running)
-      : LF.agents.filter(a => a.projectId === projectId && a.running);
-    agents.forEach(a => {
+    const agents =
+      projectId === LF.GLOBAL_ID
+        ? LF.agents.filter((a) => (!a.projectId || a.projectId === LF.GLOBAL_ID) && a.running)
+        : LF.agents.filter((a) => a.projectId === projectId && a.running);
+    agents.forEach((a) => {
       LF.vscode.postMessage({ type: 'stopAgent', agentId: a.id });
     });
-    if (agents.length) LF.toast('Stopping ' + agents.length + ' agent' + (agents.length > 1 ? 's' : '') + '\u2026', 'success');
+    if (agents.length)
+      LF.toast(
+        'Stopping ' + agents.length + ' agent' + (agents.length > 1 ? 's' : '') + '\u2026',
+        'success'
+      );
   }
 
   function renderProjects() {
@@ -75,7 +86,10 @@ window.Sidebar = (() => {
     ).length;
     const globalRunning = isProjectRunning(LF.GLOBAL_ID);
     const globalItem = document.createElement('button');
-    globalItem.className = 'sidebar-item' + (LF.activeProjectId === LF.GLOBAL_ID ? ' active' : '') + (globalRunning ? ' sidebar-running' : '');
+    globalItem.className =
+      'sidebar-item' +
+      (LF.activeProjectId === LF.GLOBAL_ID ? ' active' : '') +
+      (globalRunning ? ' sidebar-running' : '');
     globalItem.innerHTML =
       '<svg class="sidebar-item-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>' +
       '<span class="sidebar-item-text">All Agents</span>' +
@@ -103,21 +117,32 @@ window.Sidebar = (() => {
       const isActive = p.id === LF.activeProjectId;
       const running = isProjectRunning(p.id);
       const item = document.createElement('button');
-      item.className = 'sidebar-item' + (isActive ? ' active' : '') + (running ? ' sidebar-running' : '');
+      item.className =
+        'sidebar-item' + (isActive ? ' active' : '') + (running ? ' sidebar-running' : '');
 
       item.innerHTML =
         '<svg class="sidebar-item-icon" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>' +
-        '<span class="sidebar-item-text">' + LF.esc(p.name) + '</span>' +
-        '<span class="sidebar-item-badge">' + (count > 0 ? count : '') + '</span>' +
+        '<span class="sidebar-item-text">' +
+        LF.esc(p.name) +
+        '</span>' +
+        '<span class="sidebar-item-badge">' +
+        (count > 0 ? count : '') +
+        '</span>' +
         '<span class="sidebar-hover-actions">' +
-          '<button class="sidebar-action-btn sidebar-play-btn" data-play-proj="' + p.id + '" title="' + (running ? 'Stop folder' : 'Run folder') + '">' +
-            (running
-              ? '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M6 6h12v12H6z"/></svg>'
-              : '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>') +
-          '</button>' +
-          '<button class="sidebar-action-btn sidebar-del-btn" data-del-proj="' + p.id + '" title="Delete">' +
-            '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>' +
-          '</button>' +
+        '<button class="sidebar-action-btn sidebar-play-btn" data-play-proj="' +
+        p.id +
+        '" title="' +
+        (running ? 'Stop folder' : 'Run folder') +
+        '">' +
+        (running
+          ? '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M6 6h12v12H6z"/></svg>'
+          : '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>') +
+        '</button>' +
+        '<button class="sidebar-action-btn sidebar-del-btn" data-del-proj="' +
+        p.id +
+        '" title="Delete">' +
+        '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>' +
+        '</button>' +
         '</span>';
 
       item.addEventListener('click', (e) => {
@@ -188,7 +213,7 @@ window.Sidebar = (() => {
     // Re-render active view
     if (LF.activeView === 'flowchart' && window.FlowChart) FlowChart.render();
     else if (window.ListView) ListView.render();
-    
+
     LF.updateHeaderToggle();
   }
 

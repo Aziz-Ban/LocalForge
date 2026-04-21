@@ -61,7 +61,8 @@ function createServer(agentId, port = 6009, modelId, defaultSystemPrompt) {
             }
 
             // Signal: request received — log the input
-            const inputText = data.prompt || (history.length ? history[history.length - 1].content : '');
+            const inputText =
+              data.prompt || (history.length ? history[history.length - 1].content : '');
             serverEvents.emit('requestReceived', agentId, inputText);
 
             // Signal: agent is now thinking
