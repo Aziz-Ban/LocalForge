@@ -13,6 +13,9 @@ window.LF = {
   agents: [],
   models: [],
   projects: [],
+  connections: [],
+  thinkingAgents: new Set(),
+  agentLogs: {}, // agentId → [{ ts, input, output, status }]
   currentWorkspace: null,
   GLOBAL_ID: '__global__',
   activeProjectId: '__global__',
@@ -39,6 +42,26 @@ window.LF = {
     let p = 6009;
     while (used.has(p)) p++;
     return p;
+  },
+  updateHeaderToggle() {
+    const btn = document.getElementById('btn-toggle-all');
+    if (!btn) return;
+    const isGlobal = LF.activeProjectId === LF.GLOBAL_ID;
+    const list = isGlobal
+      ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
+      : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
+
+    // Check if ALL agents in list are running
+    const runningCount = list.filter((a) => a.running).length;
+    const allRunning = list.length > 0 && runningCount === list.length;
+
+    if (allRunning) {
+      btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>';
+      btn.title = 'Stop All';
+    } else {
+      btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+      btn.title = 'Start All';
+    }
   },
 
   /* ── Toast ── */
@@ -117,6 +140,7 @@ LF._got = { agents: false, projects: false, workspace: false };
 function _tryFirstRender() {
   if (LF._got.agents && LF._got.projects) {
     if (window.Sidebar) Sidebar.renderProjects();
+    LF.updateHeaderToggle();
   }
 }
 
@@ -140,28 +164,29 @@ document.getElementById('btn-refresh').addEventListener('click', () => {
   _vscode.postMessage({ type: 'getModels' });
 });
 
-document.getElementById('btn-start-all').addEventListener('click', () => {
-  const list =
-    LF.activeProjectId === LF.GLOBAL_ID
-      ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
-      : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
-  if (!list.length) return LF.toast('No agents to start', '');
-  LF.toast('Starting agents…', '');
-  list.forEach((a) => {
-    if (!a.running) _vscode.postMessage({ type: 'startAgent', agent: a });
-  });
-});
+// Global toggle Play/Pause button
+document.getElementById('btn-toggle-all').addEventListener('click', () => {
+  const isGlobal = LF.activeProjectId === LF.GLOBAL_ID;
+  const list = isGlobal
+    ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
+    : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
 
-document.getElementById('btn-stop-all').addEventListener('click', () => {
-  const list =
-    LF.activeProjectId === LF.GLOBAL_ID
-      ? LF.agents.filter((a) => !a.projectId || a.projectId === LF.GLOBAL_ID)
-      : LF.agents.filter((a) => a.projectId === LF.activeProjectId);
-  if (!list.length) return LF.toast('No agents to stop', '');
-  LF.toast('Stopping agents…', '');
-  list.forEach((a) => {
-    if (a.running) _vscode.postMessage({ type: 'stopAgent', agentId: a.id });
-  });
+  if (!list.length) return LF.toast('No agents in this folder', '');
+
+  const runningCount = list.filter((a) => a.running).length;
+  const shouldStart = runningCount === 0 || runningCount < list.length;
+
+  if (shouldStart) {
+    LF.toast('Starting agents…', '');
+    list.forEach((a) => {
+      if (!a.running) _vscode.postMessage({ type: 'startAgent', agent: a });
+    });
+  } else {
+    LF.toast('Stopping agents…', '');
+    list.forEach((a) => {
+      if (a.running) _vscode.postMessage({ type: 'stopAgent', agentId: a.id });
+    });
+  }
 });
 
 // ── VS Code message handler ──────────────────────────────────────────────────
@@ -183,6 +208,11 @@ window.addEventListener('message', (e) => {
     case 'models':
       LF.models = msg.value || [];
       if (LF.editingId && window.ListView) ListView.render();
+      break;
+
+    case 'connections':
+      LF.connections = msg.value || [];
+      if (LF.activeView === 'flowchart' && window.FlowChart) FlowChart.render();
       break;
 
     case 'agents':
@@ -209,9 +239,17 @@ window.addEventListener('message', (e) => {
       }
       if (window.ListView) ListView.render();
       if (LF.activeView === 'flowchart' && window.FlowChart) FlowChart.render();
+      if (window.Sidebar) Sidebar.renderProjects();
+      LF.updateHeaderToggle();
       break;
 
     case 'agentStopped':
+      // Always clear thinking state when an agent stops
+      LF.thinkingAgents.delete(msg.agentId);
+      {
+        const lel = document.getElementById('ag-card-' + msg.agentId);
+        if (lel) lel.classList.remove('thinking');
+      }
       if (msg.success) {
         const a = LF.agents.find((x) => x.id === msg.agentId);
         if (a) a.running = false;
@@ -221,9 +259,12 @@ window.addEventListener('message', (e) => {
       }
       if (window.ListView) ListView.render();
       if (LF.activeView === 'flowchart' && window.FlowChart) FlowChart.render();
+      if (window.Sidebar) Sidebar.renderProjects();
+      LF.updateHeaderToggle();
       break;
 
     case 'agentThinking': {
+      LF.thinkingAgents.add(msg.agentId);
       if (window.FlowChart) FlowChart.triggerThinking(msg.agentId);
       // List view: add a subtle thinking indicator
       const lel = document.getElementById('ag-card-' + msg.agentId);
@@ -232,6 +273,7 @@ window.addEventListener('message', (e) => {
     }
 
     case 'agentActivity': {
+      LF.thinkingAgents.delete(msg.agentId);
       // Glow in list view
       const el = document.getElementById('ag-card-' + msg.agentId);
       if (el) {
@@ -241,7 +283,19 @@ window.addEventListener('message', (e) => {
         el.classList.add('activity');
       }
       // Glow + preview in flowchart
-      if (window.FlowChart) FlowChart.triggerActivity(msg.agentId, msg.preview || '');
+      if (window.FlowChart) {
+        FlowChart.triggerActivity(msg.agentId, msg.preview || '');
+        // Visual feedback for agent chaining — highlight downstream nodes
+        FlowChart.routeOutput(msg.agentId, msg.preview || '');
+      }
+      break;
+    }
+
+    case 'agentLogUpdate': {
+      LF.agentLogs[msg.agentId] = msg.logs || [];
+      // Update log panels if visible
+      if (window.FlowChart && FlowChart.updateLogPanel) FlowChart.updateLogPanel(msg.agentId);
+      if (window.ListView && ListView.updateLogPanel) ListView.updateLogPanel(msg.agentId);
       break;
     }
 
@@ -256,3 +310,4 @@ _vscode.postMessage({ type: 'getModels' });
 _vscode.postMessage({ type: 'getCurrentWorkspace' });
 _vscode.postMessage({ type: 'getProjects' });
 _vscode.postMessage({ type: 'getAgents' });
+_vscode.postMessage({ type: 'getConnections' });

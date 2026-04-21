@@ -60,6 +60,11 @@ function createServer(agentId, port = 6009, modelId, defaultSystemPrompt) {
               return;
             }
 
+            // Signal: request received — log the input
+            const inputText =
+              data.prompt || (history.length ? history[history.length - 1].content : '');
+            serverEvents.emit('requestReceived', agentId, inputText);
+
             // Signal: agent is now thinking
             serverEvents.emit('activityStart', agentId);
 
@@ -77,6 +82,9 @@ function createServer(agentId, port = 6009, modelId, defaultSystemPrompt) {
             // Signal: agent finished — include a snippet of the response
             const preview = responseText ? responseText.substring(0, 80) : '';
             serverEvents.emit('activity', agentId, preview);
+
+            // Signal: full response available for agent-to-agent routing
+            serverEvents.emit('responseComplete', agentId, responseText);
           } catch (error) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: error.message }));
