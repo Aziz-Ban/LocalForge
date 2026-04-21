@@ -56,11 +56,11 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('smart-copilot.agentInput', async (data) => {
       const targetAgent = agents.find((a) => a.id === data.agentId);
-      if (targetAgent) {
+      if (targetAgent && isAgentRunning(targetAgent.id)) {
         try {
-          await fetch(`http://localhost:${targetAgent.port}/input`, {
+          await fetch(`http://localhost:${targetAgent.port}/LocalForge/chat`, {
             method: 'POST',
-            body: JSON.stringify({ input: data.input, from: data.sourceAgentId }),
+            body: JSON.stringify({ prompt: data.input }),
             headers: { 'Content-Type': 'application/json' }
           });
         } catch (e) {
@@ -183,12 +183,83 @@ function activate(context) {
 
   const provider = new AgentViewProvider(context.extensionUri);
 
+  // ── Agent activity log ──
+  const agentLogs = {}; // agentId → [{ ts, input, output, status }]
+  const MAX_LOGS = 50;
+
+  serverEvents.on('requestReceived', (agentId, inputText) => {
+    if (!agentLogs[agentId]) agentLogs[agentId] = [];
+    agentLogs[agentId].push({
+      ts: Date.now(),
+      input: inputText ? inputText.substring(0, 500) : '',
+      output: null,
+      status: 'thinking'
+    });
+    // Keep only last N entries
+    if (agentLogs[agentId].length > MAX_LOGS) agentLogs[agentId].shift();
+    provider.broadcast({ type: 'agentLogUpdate', agentId, logs: agentLogs[agentId] });
+  });
+
   serverEvents.on('activityStart', (agentId) => {
     provider.broadcast({ type: 'agentThinking', agentId });
   });
 
   serverEvents.on('activity', (agentId, preview) => {
     provider.broadcast({ type: 'agentActivity', agentId, preview: preview || '' });
+  });
+
+  serverEvents.on('responseComplete', (agentId, fullResponse) => {
+    // Update the last log entry with the response
+    if (agentLogs[agentId] && agentLogs[agentId].length) {
+      const last = agentLogs[agentId][agentLogs[agentId].length - 1];
+      if (last.status === 'thinking') {
+        last.output = fullResponse ? fullResponse.substring(0, 500) : '';
+        last.status = 'done';
+        last.tsEnd = Date.now();
+      }
+    }
+    provider.broadcast({ type: 'agentLogUpdate', agentId, logs: agentLogs[agentId] || [] });
+  });
+
+  // ── Agent-to-agent routing: when an agent completes, forward to connected agents ──
+  const activeChains = new Set(); // prevent circular loops (A→B→A)
+
+  serverEvents.on('responseComplete', async (fromAgentId, fullResponse) => {
+    if (!fullResponse || !connections.length) return;
+
+    // Prevent infinite loops: if this agent is already in an active chain, skip
+    if (activeChains.has(fromAgentId)) {
+      activeChains.delete(fromAgentId);
+      return;
+    }
+
+    const downstream = connections.filter(c => c.from === fromAgentId);
+    for (const conn of downstream) {
+      const targetAgent = agents.find(a => a.id === conn.to);
+      if (!targetAgent || !isAgentRunning(targetAgent.id)) continue;
+
+      // Mark the target as being in an active chain to detect cycles
+      activeChains.add(fromAgentId);
+
+      try {
+        fetch(`http://localhost:${targetAgent.port}/LocalForge/chat`, {
+          method: 'POST',
+          body: JSON.stringify({ prompt: fullResponse }),
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(() => {
+          // Clean up after the downstream agent finishes
+          setTimeout(() => activeChains.delete(fromAgentId), 1000);
+        })
+        .catch(e => {
+          activeChains.delete(fromAgentId);
+          console.error(`Chain routing to ${targetAgent.name} failed:`, e);
+        });
+      } catch (e) {
+        activeChains.delete(fromAgentId);
+        console.error(`Chain routing to ${targetAgent.name} failed:`, e);
+      }
+    }
   });
 
   context.subscriptions.push(

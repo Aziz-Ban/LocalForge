@@ -15,6 +15,7 @@ window.LF = {
   projects: [],
   connections: [],
   thinkingAgents: new Set(),
+  agentLogs: {},    // agentId → [{ ts, input, output, status }]
   currentWorkspace: null,
   GLOBAL_ID: '__global__',
   activeProjectId: '__global__',
@@ -243,10 +244,15 @@ window.addEventListener('message', (e) => {
       break;
 
     case 'agentStopped':
+      // Always clear thinking state when an agent stops
+      LF.thinkingAgents.delete(msg.agentId);
+      {
+        const lel = document.getElementById('ag-card-' + msg.agentId);
+        if (lel) lel.classList.remove('thinking');
+      }
       if (msg.success) {
         const a = LF.agents.find((x) => x.id === msg.agentId);
         if (a) a.running = false;
-        LF.thinkingAgents.delete(msg.agentId);
         LF.toast('Agent stopped', 'success');
       } else {
         LF.toast(msg.error || 'Failed to stop', 'error');
@@ -277,7 +283,19 @@ window.addEventListener('message', (e) => {
         el.classList.add('activity');
       }
       // Glow + preview in flowchart
-      if (window.FlowChart) FlowChart.triggerActivity(msg.agentId, msg.preview || '');
+      if (window.FlowChart) {
+        FlowChart.triggerActivity(msg.agentId, msg.preview || '');
+        // Visual feedback for agent chaining — highlight downstream nodes
+        FlowChart.routeOutput(msg.agentId, msg.preview || '');
+      }
+      break;
+    }
+
+    case 'agentLogUpdate': {
+      LF.agentLogs[msg.agentId] = msg.logs || [];
+      // Update log panels if visible
+      if (window.FlowChart && FlowChart.updateLogPanel) FlowChart.updateLogPanel(msg.agentId);
+      if (window.ListView && ListView.updateLogPanel) ListView.updateLogPanel(msg.agentId);
       break;
     }
 

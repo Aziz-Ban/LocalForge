@@ -10,10 +10,14 @@ window.FlowChart = (() => {
   const COLS = 2;
   const NODE_W = 240;
   const NODE_H = 90;
+  const CHAT_EXPAND_H = 220; // height added when chat panel is open
 
   // ── State ─────────────────────────────────────────────────────
   let connectingFrom = null;
   let dragLine = null;
+
+  // Preserve chat input values across re-renders
+  const savedChatInputs = {};
 
   // Node positions (persisted per session)
   let nodePositions = {};
@@ -177,8 +181,25 @@ window.FlowChart = (() => {
     const svg = buildSVG();
     world.appendChild(svg);
 
-    // Draw connections
+    // Detect circular loops (A→B and B→A)
     const connections = LF.connections || [];
+    const loopNodes = new Set();
+    connections.forEach(c1 => {
+      connections.forEach(c2 => {
+        if (c1.from === c2.to && c1.to === c2.from) {
+          loopNodes.add(c1.from);
+          loopNodes.add(c1.to);
+        }
+      });
+    });
+
+    // Save any open chat input values before re-render
+    agents.forEach(a => {
+      const inp = document.getElementById('fc-chatinput-' + a.id);
+      if (inp && inp.value) savedChatInputs[a.id] = inp.value;
+    });
+
+    // Draw connections
     connections.forEach(({ from, to }) => {
       const fi = agents.findIndex(a => a.id === from);
       const ti = agents.findIndex(a => a.id === to);
@@ -186,13 +207,17 @@ window.FlowChart = (() => {
       const s = nodeCenter(from, fi);
       const e = nodeCenter(to, ti);
       const d = curvePath(s.cx, s.cy, e.cx, e.cy);
+      const connId = from + '__' + to;
+      const isLoop = loopNodes.has(from) && loopNodes.has(to);
+      const lineColor = isLoop ? '#ef4444' : '#8b5cf6';
 
       const glow = ns('path');
       glow.setAttribute('d', d);
-      glow.setAttribute('stroke', '#8b5cf6');
+      glow.setAttribute('stroke', lineColor);
       glow.setAttribute('stroke-width', '8');
-      glow.setAttribute('stroke-opacity', '0.08');
+      glow.setAttribute('stroke-opacity', isLoop ? '0.15' : '0.08');
       glow.setAttribute('fill', 'none');
+      glow.setAttribute('data-conn-id', connId);
       svg.appendChild(glow);
 
       const hit = ns('path');
@@ -200,6 +225,7 @@ window.FlowChart = (() => {
       hit.setAttribute('stroke', 'transparent');
       hit.setAttribute('stroke-width', '16');
       hit.setAttribute('fill', 'none');
+      hit.setAttribute('data-conn-id', connId);
       hit.style.pointerEvents = 'stroke';
       hit.style.cursor = 'pointer';
       hit.addEventListener('click', () => removeConnection(from, to));
@@ -207,11 +233,12 @@ window.FlowChart = (() => {
 
       const path = ns('path');
       path.setAttribute('d', d);
-      path.setAttribute('stroke', '#8b5cf6');
+      path.setAttribute('stroke', lineColor);
       path.setAttribute('stroke-width', '2');
       path.setAttribute('stroke-dasharray', '8,4');
       path.setAttribute('fill', 'none');
       path.setAttribute('marker-end', 'url(#ah)');
+      path.setAttribute('data-conn-id', connId);
       path.classList.add('fc-arrow');
       svg.appendChild(path);
     });
@@ -221,24 +248,36 @@ window.FlowChart = (() => {
       const pos = getNodePos(a.id, idx);
       const on = !!a.running;
       const model = modelLabel(a.modelId);
+      const isOpen = openChatPanels.has(a.id);
+      const inLoop = loopNodes.has(a.id);
+      const logs = LF.agentLogs[a.id] || [];
+      const logHtml = renderLogEntries(logs);
       const node = document.createElement('div');
-      node.className = 'fc-node' + (on ? ' fc-running' : '');
+      let cls = 'fc-node';
+      if (on) cls += ' fc-running';
+      if (isOpen) cls += ' fc-expanded';
+      if (inLoop) cls += ' fc-loop-warn';
+      node.className = cls;
       node.id = 'fc-node-' + a.id;
       node.dataset.agentId = a.id;
       node.style.left = pos.x + 'px';
       node.style.top = pos.y + 'px';
       node.style.width = NODE_W + 'px';
 
+      const savedVal = savedChatInputs[a.id] || '';
+
       node.innerHTML = `
         <div class="fc-node-header">
           <div class="fc-node-dot ${on ? 'on' : ''}"></div>
           <div class="fc-node-title">${LF.esc(a.name)}</div>
+          ${inLoop ? '<span class="fc-loop-badge" title="Loop detected: agents feed into each other">\u26A0 Loop</span>' : ''}
           <div class="fc-node-actions">
             ${on
               ? `<button class="fc-btn fc-stop" data-stop="${a.id}" title="Stop">\u25A0</button>`
               : `<button class="fc-btn fc-start" data-start="${a.id}" title="Start">\u25B6</button>`
             }
             <button class="fc-btn fc-link" data-connect="${a.id}" title="Drag to connect">\u2192</button>
+            <button class="fc-btn fc-chat-btn${isOpen ? ' fc-chat-active' : ''}" data-chat="${a.id}" title="Chat / Test">\u2709</button>
           </div>
         </div>
         <div class="fc-node-detail">
@@ -247,15 +286,27 @@ window.FlowChart = (() => {
           ${on ? '<span class="fc-tag fc-tag-live">\u25CF live</span>' : ''}
         </div>
         <div class="fc-node-status"></div>
+        <div class="fc-node-chat ${isOpen ? 'open' : ''}" id="fc-nodechat-${a.id}">
+          <div class="fc-nodechat-log" id="fc-chatlog-${a.id}">${logHtml}</div>
+          <div class="fc-nodechat-input">
+            <input type="text" id="fc-chatinput-${a.id}" placeholder="Type a message\u2026" value="${LF.esc(savedVal)}" />
+            <button class="fc-nodechat-send${on ? '' : ' disabled'}" data-send-chat="${a.id}" ${on ? '' : 'disabled'}>Send</button>
+          </div>
+        </div>
         <div class="fc-preview"></div>
       `;
       world.appendChild(node);
 
-      // Restore thinking state
-      if (LF.thinkingAgents.has(a.id)) {
+      // Only show thinking if agent is actually running
+      if (on && LF.thinkingAgents.has(a.id)) {
         node.classList.add('fc-thinking');
         const s = node.querySelector('.fc-node-status');
         if (s) s.textContent = 'thinking\u2026';
+      }
+
+      // Bind input events for open chat panels
+      if (isOpen) {
+        bindChatInput(a.id);
       }
     });
 
@@ -317,24 +368,16 @@ window.FlowChart = (() => {
     const svg = document.getElementById('fc-svg');
     if (!svg) return;
 
-    (LF.connections || []).forEach((c, idx) => {
-      if (c.from === aid) {
-        const ti = agents.findIndex(a => a.id === c.to);
-        if (ti >= 0) {
-          const tc = nodeCenter(c.to, ti);
-          const p = curvePath(center.cx, center.cy, tc.cx, tc.cy);
-          const paths = svg.querySelectorAll(`path:nth-child(${idx * 3 + 1}), path:nth-child(${idx * 3 + 2}), path:nth-child(${idx * 3 + 3})`);
-          paths.forEach(pt => pt.setAttribute('d', p));
-        }
-      }
-      if (c.to === aid) {
+    (LF.connections || []).forEach((c) => {
+      if (c.from === aid || c.to === aid) {
         const fi2 = agents.findIndex(a => a.id === c.from);
-        if (fi2 >= 0) {
-          const fc = nodeCenter(c.from, fi2);
-          const p = curvePath(fc.cx, fc.cy, center.cx, center.cy);
-          const paths = svg.querySelectorAll(`path:nth-child(${idx * 3 + 1}), path:nth-child(${idx * 3 + 2}), path:nth-child(${idx * 3 + 3})`);
-          paths.forEach(pt => pt.setAttribute('d', p));
-        }
+        const ti2 = agents.findIndex(a => a.id === c.to);
+        if (fi2 < 0 || ti2 < 0) return;
+        const sc = nodeCenter(c.from, fi2);
+        const ec = nodeCenter(c.to, ti2);
+        const p = curvePath(sc.cx, sc.cy, ec.cx, ec.cy);
+        const connId = c.from + '__' + c.to;
+        svg.querySelectorAll(`[data-conn-id="${connId}"]`).forEach(el => el.setAttribute('d', p));
       }
     });
 
@@ -497,8 +540,152 @@ window.FlowChart = (() => {
   function onClick(e) {
     const btn = e.target.closest('button');
     if (!btn) return;
-    if (btn.dataset.start) { btn.textContent = '…'; btn.disabled = true; LF.vscode.postMessage({ type: 'startAgent', agentId: btn.dataset.start }); }
-    if (btn.dataset.stop) { btn.textContent = '…'; btn.disabled = true; LF.vscode.postMessage({ type: 'stopAgent', agentId: btn.dataset.stop }); }
+    if (btn.dataset.start) {
+      const a = LF.agents.find(x => x.id === btn.dataset.start);
+      if (a) { btn.textContent = '\u2026'; btn.disabled = true; LF.vscode.postMessage({ type: 'startAgent', agent: a }); }
+    }
+    if (btn.dataset.stop) { btn.textContent = '\u2026'; btn.disabled = true; LF.vscode.postMessage({ type: 'stopAgent', agentId: btn.dataset.stop }); }
+    if (btn.dataset.chat) {
+      toggleChatPanel(btn.dataset.chat);
+    }
+    if (btn.dataset.sendChat) {
+      sendChatMessage(btn.dataset.sendChat);
+    }
+  }
+
+  // ── Inline chat panel (expands inside the node) ────────────────
+  const openChatPanels = new Set();
+
+  function toggleChatPanel(agentId) {
+    const chatSection = document.getElementById('fc-nodechat-' + agentId);
+    const node = document.getElementById('fc-node-' + agentId);
+    const chatBtn = node ? node.querySelector('[data-chat]') : null;
+    if (!chatSection || !node) return;
+
+    const nodeY = parseFloat(node.style.top);
+    const threshold = nodeY + NODE_H; // nodes below this line get pushed
+
+    if (openChatPanels.has(agentId)) {
+      // ── Collapse ──
+      openChatPanels.delete(agentId);
+      chatSection.classList.remove('open');
+      node.classList.remove('fc-expanded');
+      if (chatBtn) chatBtn.classList.remove('fc-chat-active');
+      // Pull nodes back up
+      shiftNodesBelow(agentId, threshold, -CHAT_EXPAND_H);
+    } else {
+      // ── Expand ──
+      openChatPanels.add(agentId);
+      chatSection.classList.add('open');
+      node.classList.add('fc-expanded');
+      if (chatBtn) chatBtn.classList.add('fc-chat-active');
+      bindChatInput(agentId);
+      const logEl = document.getElementById('fc-chatlog-' + agentId);
+      if (logEl) setTimeout(() => { logEl.scrollTop = logEl.scrollHeight; }, 50);
+      // Push nodes down
+      shiftNodesBelow(agentId, threshold, CHAT_EXPAND_H);
+    }
+  }
+
+  function shiftNodesBelow(excludeId, thresholdY, delta) {
+    const agents = visibleAgents();
+    agents.forEach(a => {
+      if (a.id === excludeId) return;
+      const n = document.getElementById('fc-node-' + a.id);
+      if (!n) return;
+      const ny = parseFloat(n.style.top);
+      if (ny >= thresholdY) {
+        const newY = Math.max(0, ny + delta);
+        n.style.top = newY + 'px';
+        nodePositions[a.id] = { x: parseFloat(n.style.left), y: newY };
+      }
+    });
+    // Refresh all connection lines
+    refreshConnections();
+  }
+
+  function refreshConnections() {
+    const svg = document.getElementById('fc-svg');
+    if (!svg) return;
+    const agents = visibleAgents();
+    (LF.connections || []).forEach(c => {
+      const fi = agents.findIndex(a => a.id === c.from);
+      const ti = agents.findIndex(a => a.id === c.to);
+      if (fi < 0 || ti < 0) return;
+      const sc = nodeCenter(c.from, fi);
+      const ec = nodeCenter(c.to, ti);
+      const p = curvePath(sc.cx, sc.cy, ec.cx, ec.cy);
+      const connId = c.from + '__' + c.to;
+      svg.querySelectorAll(`[data-conn-id="${connId}"]`).forEach(el => el.setAttribute('d', p));
+    });
+  }
+
+  function bindChatInput(agentId) {
+    const input = document.getElementById('fc-chatinput-' + agentId);
+    if (!input || input.dataset.bound) return;
+    input.dataset.bound = '1';
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage(agentId);
+      }
+    });
+    // Prevent drag when typing
+    input.addEventListener('mousedown', (e) => e.stopPropagation());
+    setTimeout(() => input.focus(), 50);
+  }
+
+  function renderLogEntries(logs) {
+    if (!logs || !logs.length) return '<div class="fc-chatlog-empty">No activity yet</div>';
+    return logs.map(entry => {
+      const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const inputSnip = entry.input ? (entry.input.length > 120 ? entry.input.substring(0, 120) + '\u2026' : entry.input) : '';
+      const outputSnip = entry.output ? (entry.output.length > 120 ? entry.output.substring(0, 120) + '\u2026' : entry.output) : '';
+      let html = `<div class="fc-log-entry">`;
+      html += `<div class="fc-log-time">${time}</div>`;
+      html += `<div class="fc-log-in">\u2192 ${LF.esc(inputSnip)}</div>`;
+      if (entry.status === 'thinking') {
+        html += `<div class="fc-log-thinking">thinking\u2026</div>`;
+      } else if (outputSnip) {
+        html += `<div class="fc-log-out">\u2190 ${LF.esc(outputSnip)}</div>`;
+      }
+      html += '</div>';
+      return html;
+    }).join('');
+  }
+
+  function updateLogPanel(agentId) {
+    const logEl = document.getElementById('fc-chatlog-' + agentId);
+    if (!logEl) return;
+    const logs = LF.agentLogs[agentId] || [];
+    logEl.innerHTML = renderLogEntries(logs);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function sendChatMessage(agentId) {
+    const input = document.getElementById('fc-chatinput-' + agentId);
+    if (!input || !input.value.trim()) return;
+    const message = input.value.trim();
+    input.value = '';
+
+    const a = LF.agents.find(x => x.id === agentId);
+    if (!a || !a.running) {
+      LF.toast('Start the agent first', 'error');
+      return;
+    }
+
+    fetch(`http://localhost:${a.port}/LocalForge/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: message })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) LF.toast('Error: ' + data.error, 'error');
+    })
+    .catch(err => {
+      LF.toast('Error: ' + err.message, 'error');
+    });
   }
 
   // ── Bind events ───────────────────────────────────────────────
@@ -589,5 +776,5 @@ window.FlowChart = (() => {
     });
   });
 
-  return { render, triggerThinking, triggerActivity, routeOutput, resetView };
+  return { render, triggerThinking, triggerActivity, routeOutput, resetView, updateLogPanel };
 })();

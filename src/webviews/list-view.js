@@ -179,6 +179,10 @@ window.ListView = (() => {
                 <button class="cp" data-test-send="${a.id}">Test</button>
               </div>
             </div>
+            <div class="ag-info-section">
+              <span class="ag-info-label">Activity Log</span>
+              <div class="ag-log-panel" id="ag-log-${a.id}">${renderListLogEntries(LF.agentLogs[a.id])}</div>
+            </div>
           </div>
         `;
         el.appendChild(card);
@@ -362,6 +366,31 @@ window.ListView = (() => {
   });
 
 
+  function renderListLogEntries(logs) {
+    if (!logs || !logs.length) return '<div class="ag-log-empty">No activity yet</div>';
+    return logs.slice(-10).map(entry => {
+      const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const inputSnip = entry.input ? (entry.input.length > 80 ? entry.input.substring(0, 80) + '\u2026' : entry.input) : '';
+      const outputSnip = entry.output ? (entry.output.length > 80 ? entry.output.substring(0, 80) + '\u2026' : entry.output) : '';
+      let html = '<div class="ag-log-entry">';
+      html += `<span class="ag-log-time">${time}</span>`;
+      html += `<span class="ag-log-in">\u2192 ${LF.esc(inputSnip)}</span>`;
+      if (entry.status === 'thinking') {
+        html += '<span class="ag-log-thinking">thinking\u2026</span>';
+      } else if (outputSnip) {
+        html += `<span class="ag-log-out">\u2190 ${LF.esc(outputSnip)}</span>`;
+      }
+      html += '</div>';
+      return html;
+    }).join('');
+  }
 
-  return { render };
+  function updateLogPanel(agentId) {
+    const el = document.getElementById('ag-log-' + agentId);
+    if (!el) return;
+    el.innerHTML = renderListLogEntries(LF.agentLogs[agentId]);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  return { render, updateLogPanel };
 })();
